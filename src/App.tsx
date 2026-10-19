@@ -12,14 +12,13 @@ import {
   importAllData
 } from './lib/database';
 import { getUserId } from './lib/auth';
-import { isSupabaseConfigured } from './lib/supabase';
 import Dashboard from './components/Dashboard';
 import AddTransaction from './components/AddTransaction';
 import TransactionList from './components/TransactionList';
 import WeeklyReportView from './components/WeeklyReportView';
 import Settings from './components/Settings';
 import BossView from './components/BossView';
-import { LayoutDashboard, PlusCircle, List, FileText, Settings as SettingsIcon, AlertCircle } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, List, FileText, Settings as SettingsIcon } from 'lucide-react';
 
 type Tab = 'dashboard' | 'transactions' | 'report' | 'settings';
 
@@ -186,34 +185,6 @@ export default function App() {
     { id: 'report', label: 'Report', icon: <FileText className="w-5 h-5" /> },
     { id: 'settings', label: 'Settings', icon: <SettingsIcon className="w-5 h-5" /> },
   ];
-
-  if (!isSupabaseConfigured) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-              <AlertCircle className="w-5 h-5 text-amber-600" />
-            </div>
-            <h1 className="text-lg font-bold text-gray-900">Setup Required</h1>
-          </div>
-          <div className="space-y-3 text-sm text-gray-600">
-            <p>Supabase is not configured. To use this app, you need to:</p>
-            <ol className="list-decimal list-inside space-y-2 pl-2">
-              <li>Create a Supabase project at supabase.com</li>
-              <li>Run the SQL setup script (see SUPABASE_SETUP.md)</li>
-              <li>Create a .env file with your credentials:</li>
-            </ol>
-            <div className="bg-gray-50 rounded-lg p-3 font-mono text-xs overflow-x-auto">
-              <p>VITE_SUPABASE_URL=https://...supabase.co</p>
-              <p>VITE_SUPABASE_ANON_KEY=eyJ...</p>
-            </div>
-            <p className="text-xs text-gray-500">See SUPABASE_SETUP.md for detailed instructions.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (loading) {
     return (
