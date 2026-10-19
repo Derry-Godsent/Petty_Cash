@@ -21,20 +21,25 @@ export interface WeeklyReport {
 }
 
 export interface AppSettings {
-  bossName: string;
-  bossPhone: string;
-  yourName: string;
+  recipientName: string;
+  recipientPhone: string;
+  senderName: string;
   companyName: string;
 }
 
 export const EXPENSE_CATEGORIES = [
   'Office Supplies',
-  'Transport / Fuel',
-  'Meals & Refreshments',
+  'Transport',
+  'Fuel',
+  'Meals',
+  'Refreshments',
   'Utilities',
-  'Maintenance & Repairs',
-  'Stationery & Printing',
-  'Courier / Delivery',
+  'Maintenance',
+  'Repairs',
+  'Stationery',
+  'Printing',
+  'Courier',
+  'Delivery',
   'Cleaning',
   'Security',
   'Miscellaneous',
@@ -44,6 +49,6 @@ export const INCOME_CATEGORIES = [
   'Cash Advance',
   'Refund',
   'Reimbursement',
-  'Petty Cash Top-up',
+  'Top-up',
   'Other Income',
 ];

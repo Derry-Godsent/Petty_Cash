@@ -1,4 +1,4 @@
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, isWithinInterval, parseISO } from 'date-fns';
+import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO } from 'date-fns';
 import { Transaction, WeeklyReport } from '../types';
 
 export const CURRENCY = 'GH₵';
@@ -76,22 +76,22 @@ export function parseSharedReport(hash: string): any | null {
 
 export function formatWhatsAppMessage(
   report: WeeklyReport,
-  bossName: string,
+  recipientName: string,
   senderName: string,
   shareLink: string
 ): string {
   const dateRange = `${format(parseISO(report.startDate), 'MMM dd')} - ${format(parseISO(report.endDate), 'MMM dd, yyyy')}`;
 
-  let message = `📊 *PETTY CASH WEEKLY REPORT*\n`;
-  message += `📅 ${dateRange}\n`;
-  if (senderName) message += `👤 From: ${senderName}\n`;
-  if (bossName) message += `📩 To: ${bossName}\n`;
+  let message = `PETTY CASH WEEKLY REPORT\n`;
+  message += `Period: ${dateRange}\n`;
+  if (senderName) message += `From: ${senderName}\n`;
+  if (recipientName) message += `To: ${recipientName}\n`;
   message += `\n`;
-  message += `💰 *SUMMARY*\n`;
+  message += `SUMMARY\n`;
   message += `━━━━━━━━━━━━━━━━━━\n`;
-  message += `✅ Received: ${formatCurrency(report.totalIncome)}\n`;
-  message += `❌ Spent: ${formatCurrency(report.totalExpense)}\n`;
-  message += `💵 Cash Balance: ${formatCurrency(report.balance)}\n`;
+  message += `Received: ${formatCurrency(report.totalIncome)}\n`;
+  message += `Spent: ${formatCurrency(report.totalExpense)}\n`;
+  message += `Cash Balance: ${formatCurrency(report.balance)}\n`;
   message += `━━━━━━━━━━━━━━━━━━\n\n`;
 
   if (report.transactions.length > 0) {
@@ -101,27 +101,27 @@ export function formatWhatsAppMessage(
       grouped[t.date].push(t);
     });
 
-    message += `📝 *TRANSACTIONS*\n`;
+    message += `TRANSACTIONS\n`;
     message += `━━━━━━━━━━━━━━━━━━\n`;
 
     Object.keys(grouped)
       .sort()
       .forEach((dateKey) => {
-        message += `\n📅 *${format(parseISO(dateKey), 'EEE, MMM dd')}*\n`;
+        message += `\n${format(parseISO(dateKey), 'EEE, MMM dd')}\n`;
         grouped[dateKey].forEach((t) => {
-          const icon = t.type === 'income' ? '🟢' : '🔴';
-          message += `${icon} ${t.description}\n`;
-          message += `   ${formatCurrency(t.amount)} • ${t.category}\n`;
-          if (t.notes) message += `   📌 ${t.notes}\n`;
+          const symbol = t.type === 'income' ? '[+]' : '[-]';
+          message += `${symbol} ${t.description}\n`;
+          message += `   ${formatCurrency(t.amount)} | ${t.category}\n`;
+          if (t.notes) message += `   Note: ${t.notes}\n`;
         });
       });
   } else {
-    message += `📝 No transactions this week.\n`;
+    message += `No transactions this week.\n`;
   }
 
   message += `\n━━━━━━━━━━━━━━━━━━\n`;
-  message += `🔗 *View Full Report:*\n${shareLink}\n`;
-  message += `\n_Generated ${format(new Date(), 'MMM dd, yyyy h:mm a')}_`;
+  message += `View Full Report:\n${shareLink}\n`;
+  message += `\nGenerated ${format(new Date(), 'MMM dd, yyyy h:mm a')}`;
 
   return message;
 }
