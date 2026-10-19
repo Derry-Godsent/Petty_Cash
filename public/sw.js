@@ -1,16 +1,7 @@
-const CACHE_NAME = 'petty-cash-v1';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json'
-];
+const CACHE_NAME = 'petty-cash-v2';
 
-// Install event - cache essential files
+// Install event - skip waiting so new versions activate immediately
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(urlsToCache))
-  );
   self.skipWaiting();
 });
 
@@ -19,28 +10,37 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
+        cacheNames
+          .filter((cacheName) => cacheName !== CACHE_NAME)
+          .map((cacheName) => caches.delete(cacheName))
       );
     })
   );
   self.clients.claim();
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - network first, fallback to cache for navigation only
 self.addEventListener('fetch', (event) => {
+  // Only handle navigation requests (HTML pages), let assets load normally
+  if (event.request.mode !== 'navigate') {
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then((response) => {
-        // Return cached version or fetch from network
-        return response || fetch(event.request);
+        // Clone and cache the response for offline use
+        const responseClone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseClone);
+        });
+        return response;
       })
       .catch(() => {
-        // If both fail, return offline page if available
-        return caches.match('/index.html');
+        // If network fails, try cache
+        return caches.match(event.request).then((cachedResponse) => {
+          return cachedResponse || caches.match('/index.html');
+        });
       })
   );
 });
