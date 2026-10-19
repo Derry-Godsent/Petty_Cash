@@ -48,20 +48,19 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[92vh] overflow-y-auto shadow-2xl animate-slide-up">
-        {/* Header */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 pt-5 pb-3 border-b border-gray-100 z-10">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-gray-900">New Transaction</h2>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 active:bg-gray-200"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl max-h-[90vh] overflow-y-auto shadow-2xl animate-slide-up">
+        {/* Header with prominent close button */}
+        <div className="sticky top-0 bg-white px-5 pt-4 pb-3 border-b border-gray-200 z-10 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">New Transaction</h2>
+          <button
+            onClick={onClose}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-xl transition-colors"
+            aria-label="Close"
+          >
+            ✕
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
@@ -216,6 +215,15 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
             className="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-base transition-all shadow-lg active:scale-[0.98] disabled:bg-gray-300 disabled:shadow-none"
           >
             Add Transaction
+          </button>
+
+          {/* Cancel button */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm transition-colors active:bg-gray-300"
+          >
+            Cancel
           </button>
         </form>
       </div>
