@@ -28,28 +28,29 @@ export interface AppSettings {
   companyName: string;
 }
 
+// Categories tailored for laundry, cleaning, fumigation, and marketing operations
 export const EXPENSE_CATEGORIES = [
-  'Office Supplies',
-  'Transport',
-  'Fuel',
-  'Meals',
-  'Refreshments',
-  'Utilities',
-  'Maintenance',
-  'Repairs',
-  'Stationery',
-  'Printing',
-  'Courier',
-  'Delivery',
-  'Cleaning',
-  'Security',
+  'Transport / Fuel',
+  'Marketing Materials',
+  'Printing & Stationery',
+  'Cleaning Supplies',
+  'Laundry Supplies',
+  'Fumigation Chemicals',
+  'Equipment Rental',
+  'Equipment Maintenance',
+  'Protective Gear',
+  'Staff Meals',
+  'Communication / Airtime',
+  'Courier / Delivery',
+  'Advertising',
+  'Client Entertainment',
   'Miscellaneous',
 ];
 
 export const INCOME_CATEGORIES = [
   'Cash Advance',
+  'Petty Cash Top-up',
   'Refund',
   'Reimbursement',
-  'Top-up',
   'Other Income',
 ];

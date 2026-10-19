@@ -90,19 +90,20 @@ export default function Dashboard({ transactions, currentBalance }: DashboardPro
         <div className="divide-y divide-gray-50">
           {recentTransactions.length === 0 ? (
             <div className="px-5 pb-8 pt-2 text-center">
-              <p className="text-sm text-gray-500">No transactions yet</p>
+              <p className="text-sm text-gray-500 font-medium">No transactions yet</p>
+              <p className="text-xs text-gray-400 mt-1">Tap the + button to add your first entry</p>
             </div>
           ) : (
             recentTransactions.map((t) => (
-              <div key={t.id} className="px-5 py-3.5 flex items-center justify-between">
-                <div className="min-w-0">
+              <div key={t.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-gray-900 truncate">{t.description}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">
                     {format(parseISO(t.date), 'MMM dd')} | {t.category}
                   </p>
                 </div>
                 <span
-                  className={`font-semibold text-sm shrink-0 ml-3 ${
+                  className={`font-semibold text-sm shrink-0 ${
                     t.type === 'income' ? 'text-green-600' : 'text-red-600'
                   }`}
                 >

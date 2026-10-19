@@ -3,9 +3,39 @@ import { Transaction, AppSettings } from '../types';
 
 function getSupabase() {
   if (!isSupabaseConfigured || !supabase) {
-    throw new Error('Supabase is not configured. Please check your environment variables.');
+    throw new Error('Supabase is not configured.');
   }
   return supabase;
+}
+
+// Map Transaction (camelCase) to DB row (snake_case)
+function toDbRow(t: Transaction) {
+  return {
+    id: t.id,
+    user_id: t.user_id,
+    date: t.date,
+    description: t.description,
+    category: t.category,
+    amount: t.amount,
+    type: t.type,
+    notes: t.notes || null,
+    created_at: t.createdAt,
+  };
+}
+
+// Map DB row (snake_case) to Transaction (camelCase)
+function fromDbRow(row: any): Transaction {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    date: row.date,
+    description: row.description,
+    category: row.category,
+    amount: parseFloat(row.amount),
+    type: row.type,
+    notes: row.notes || undefined,
+    createdAt: row.created_at,
+  };
 }
 
 export async function getAllTransactions(userId: string): Promise<Transaction[]> {
@@ -16,17 +46,24 @@ export async function getAllTransactions(userId: string): Promise<Transaction[]>
     .eq('user_id', userId)
     .order('date', { ascending: false });
 
-  if (error) throw error;
-  return data || [];
+  if (error) {
+    console.error('Error fetching transactions:', error);
+    throw error;
+  }
+  
+  return (data || []).map(fromDbRow);
 }
 
 export async function addTransaction(transaction: Transaction): Promise<void> {
   const db = getSupabase();
   const { error } = await db
     .from('transactions')
-    .insert([transaction]);
+    .insert([toDbRow(transaction)]);
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error adding transaction:', error);
+    throw error;
+  }
 }
 
 export async function deleteTransaction(id: string, userId: string): Promise<void> {
@@ -37,7 +74,10 @@ export async function deleteTransaction(id: string, userId: string): Promise<voi
     .eq('id', id)
     .eq('user_id', userId);
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error deleting transaction:', error);
+    throw error;
+  }
 }
 
 export async function clearAllTransactions(userId: string): Promise<void> {
@@ -47,7 +87,10 @@ export async function clearAllTransactions(userId: string): Promise<void> {
     .delete()
     .eq('user_id', userId);
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error clearing transactions:', error);
+    throw error;
+  }
 }
 
 export async function getSettings(userId: string): Promise<AppSettings | null> {
@@ -56,19 +99,21 @@ export async function getSettings(userId: string): Promise<AppSettings | null> {
     .from('settings')
     .select('*')
     .eq('user_id', userId)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === 'PGRST116') return null; // No rows returned
-    throw error;
+    console.error('Error fetching settings:', error);
+    return null;
   }
   
-  return data ? {
-    recipientName: data.recipient_name,
-    recipientPhone: data.recipient_phone,
-    senderName: data.sender_name,
-    companyName: data.company_name,
-  } : null;
+  if (!data) return null;
+  
+  return {
+    recipientName: data.recipient_name || '',
+    recipientPhone: data.recipient_phone || '',
+    senderName: data.sender_name || '',
+    companyName: data.company_name || '',
+  };
 }
 
 export async function saveSettings(userId: string, settings: AppSettings): Promise<void> {
@@ -86,7 +131,10 @@ export async function saveSettings(userId: string, settings: AppSettings): Promi
       onConflict: 'user_id'
     });
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error saving settings:', error);
+    throw error;
+  }
 }
 
 export async function exportAllData(userId: string): Promise<string> {
@@ -106,25 +154,32 @@ export async function exportAllData(userId: string): Promise<string> {
 export async function importAllData(userId: string, jsonString: string): Promise<void> {
   const data = JSON.parse(jsonString);
   
-  // Clear existing transactions
   await clearAllTransactions(userId);
   
-  // Import transactions
   if (data.transactions && Array.isArray(data.transactions)) {
     const db = getSupabase();
     const transactionsToInsert = data.transactions.map((t: any) => ({
-      ...t,
+      id: t.id,
       user_id: userId,
+      date: t.date,
+      description: t.description,
+      category: t.category,
+      amount: t.amount,
+      type: t.type,
+      notes: t.notes || null,
+      created_at: t.createdAt || t.created_at,
     }));
     
     const { error } = await db
       .from('transactions')
       .insert(transactionsToInsert);
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error importing transactions:', error);
+      throw error;
+    }
   }
 
-  // Import settings
   if (data.settings) {
     await saveSettings(userId, data.settings);
   }

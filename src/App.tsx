@@ -57,6 +57,7 @@ export default function App() {
         }
       } catch (error) {
         console.error('Failed to load ', error);
+        // Don't block the UI on load error - user can still try to add data
       } finally {
         setLoading(false);
       }
@@ -64,6 +65,18 @@ export default function App() {
 
     loadData();
   }, []);
+
+  // Refresh data when tab becomes visible (for multi-device sync)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && userId) {
+        getAllTransactions(userId).then(setTransactions).catch(console.error);
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [userId]);
 
   // Check for shared report in URL hash
   useEffect(() => {
@@ -88,20 +101,35 @@ export default function App() {
   }, [transactions]);
 
   const handleAddTransaction = async (data: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>) => {
-    const newTransaction: Transaction = {
-      ...data,
-      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2),
-      user_id: userId,
-      createdAt: new Date().toISOString(),
-    };
-    
-    await dbAddTransaction(newTransaction);
-    setTransactions((prev) => [...prev, newTransaction]);
+    try {
+      const newTransaction: Transaction = {
+        ...data,
+        id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2),
+        user_id: userId,
+        createdAt: new Date().toISOString(),
+      };
+      
+      await dbAddTransaction(newTransaction);
+      
+      // Refresh transactions from database to ensure consistency
+      const updatedTransactions = await getAllTransactions(userId);
+      setTransactions(updatedTransactions);
+    } catch (error) {
+      console.error('Failed to add transaction:', error);
+      alert('Failed to add transaction. Please try again.');
+    }
   };
 
   const handleDeleteTransaction = async (id: string) => {
-    await dbDeleteTransaction(id, userId);
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    try {
+      await dbDeleteTransaction(id, userId);
+      // Refresh from database
+      const updatedTransactions = await getAllTransactions(userId);
+      setTransactions(updatedTransactions);
+    } catch (error) {
+      console.error('Failed to delete transaction:', error);
+      alert('Failed to delete transaction. Please try again.');
+    }
   };
 
   const handleSaveSettings = async (newSettings: AppSettings) => {

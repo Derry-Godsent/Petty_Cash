@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { Transaction, TransactionType, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../types';
-import { X } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 
 interface AddTransactionProps {
   onAdd: (transaction: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>) => void;
@@ -15,23 +15,36 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
+  const [showCustomCategory, setShowCustomCategory] = useState(false);
+  const [customCategory, setCustomCategory] = useState('');
 
   const categories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description || !amount || !category) return;
+    
+    const finalCategory = showCustomCategory ? customCategory.trim() : category;
+    
+    if (!description || !amount || !finalCategory) return;
 
     onAdd({
       date,
       description,
-      category,
+      category: finalCategory,
       amount: parseFloat(amount),
       type,
       notes: notes || undefined,
     });
 
     onClose();
+  };
+
+  const handleAddCustomCategory = () => {
+    if (customCategory.trim()) {
+      setCategory(customCategory.trim());
+      setShowCustomCategory(false);
+      setCustomCategory('');
+    }
   };
 
   return (
@@ -104,7 +117,7 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Enter description"
+              placeholder="What was this for?"
               className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-gray-900 transition-all"
               required
             />
@@ -113,22 +126,63 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
           {/* Category */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Category</label>
-            <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => (
+            
+            {!showCustomCategory ? (
+              <>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setCategory(cat)}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                        category === cat
+                          ? 'bg-slate-800 text-white shadow-sm'
+                          : 'bg-gray-100 text-gray-600 active:bg-gray-200'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
                 <button
-                  key={cat}
                   type="button"
-                  onClick={() => setCategory(cat)}
-                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                    category === cat
-                      ? 'bg-slate-800 text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-600 active:bg-gray-200'
-                  }`}
+                  onClick={() => setShowCustomCategory(true)}
+                  className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-500 hover:border-slate-400 hover:text-slate-600 transition-colors flex items-center justify-center gap-2"
                 >
-                  {cat}
+                  <Plus className="w-4 h-4" />
+                  Add Custom Category
                 </button>
-              ))}
-            </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  placeholder="Enter custom category"
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-gray-900 transition-all"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAddCustomCategory}
+                    disabled={!customCategory.trim()}
+                    className="flex-1 py-2.5 bg-slate-800 text-white rounded-lg text-sm font-semibold disabled:bg-gray-300 transition-colors"
+                  >
+                    Add Category
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowCustomCategory(false); setCustomCategory(''); }}
+                    className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Date */}
@@ -158,7 +212,7 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
           {/* Submit */}
           <button
             type="submit"
-            disabled={!description || !amount || !category}
+            disabled={!description || !amount || (!showCustomCategory && !category) || (showCustomCategory && !customCategory.trim())}
             className="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-base transition-all shadow-lg active:scale-[0.98] disabled:bg-gray-300 disabled:shadow-none"
           >
             Add Transaction
