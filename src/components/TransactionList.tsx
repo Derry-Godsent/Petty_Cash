@@ -119,7 +119,8 @@ export default function TransactionList({ transactions, onDelete }: TransactionL
                   onClick={() => {
                     if (confirm('Delete this transaction?')) onDelete(t.id);
                   }}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  className="w-10 h-10 flex items-center justify-center rounded-lg text-red-500 bg-red-50 hover:bg-red-100 active:bg-red-200 transition-colors"
+                  aria-label="Delete transaction"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
