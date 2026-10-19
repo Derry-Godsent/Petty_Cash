@@ -2,14 +2,14 @@ import { useState, useMemo, useEffect } from 'react';
 import { Transaction, AppSettings } from './types';
 
 import { 
-  getAllTransactions, 
-  addTransaction as dbAddTransaction, 
-  deleteTransaction as dbDeleteTransaction,
-  clearAllTransactions,
+  getTeamTransactions, 
+  addTeamTransaction,
+  deleteTeamTransaction,
+  clearTeamTransactions,
   getSettings,
   saveSettings,
-  exportAllData,
-  importAllData
+  subscribeToTeamTransactions,
+  generateTeamCode
 } from './lib/database';
 import { getUserId } from './lib/auth';
 import Dashboard from './components/Dashboard';
@@ -25,8 +25,10 @@ type Tab = 'dashboard' | 'transactions' | 'report' | 'settings';
 const DEFAULT_SETTINGS: AppSettings = {
   recipientName: '',
   recipientPhone: '',
+  recipientEmail: '',
   senderName: '',
   companyName: '',
+  teamCode: '',
 };
 
 export default function App() {
@@ -45,18 +47,17 @@ export default function App() {
         const uid = getUserId();
         setUserId(uid);
         
-        const [txData, settingsData] = await Promise.all([
-          getAllTransactions(uid),
-          getSettings(uid)
-        ]);
-        
-        setTransactions(txData);
+        const settingsData = await getSettings(uid);
         if (settingsData) {
           setSettings(settingsData);
+          // If user has a team code, load team data
+          if (settingsData.teamCode) {
+            const txData = await getTeamTransactions(settingsData.teamCode);
+            setTransactions(txData);
+          }
         }
       } catch (error) {
-        console.error('Failed to load ', error);
-        // Don't block the UI on load error - user can still try to add data
+        console.error('Failed to load data:', error);
       } finally {
         setLoading(false);
       }
@@ -65,17 +66,15 @@ export default function App() {
     loadData();
   }, []);
 
-  // Refresh data when tab becomes visible (for multi-device sync)
+  // Real-time subscription to team transactions
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && userId) {
-        getAllTransactions(userId).then(setTransactions).catch(console.error);
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [userId]);
+    if (settings.teamCode) {
+      const unsubscribe = subscribeToTeamTransactions(settings.teamCode, (updatedTransactions) => {
+        setTransactions(updatedTransactions);
+      });
+      return unsubscribe;
+    }
+  }, [settings.teamCode]);
 
 
 
@@ -88,19 +87,13 @@ export default function App() {
   }, [transactions]);
 
   const handleAddTransaction = async (data: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>) => {
+    if (!settings.teamCode) {
+      alert('Please set up a team code in Settings first.');
+      return;
+    }
     try {
-      const newTransaction: Transaction = {
-        ...data,
-        id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2),
-        user_id: userId,
-        createdAt: new Date().toISOString(),
-      };
-      
-      await dbAddTransaction(newTransaction);
-      
-      // Refresh transactions from database to ensure consistency
-      const updatedTransactions = await getAllTransactions(userId);
-      setTransactions(updatedTransactions);
+      await addTeamTransaction(settings.teamCode, data);
+      // Real-time subscription will update the UI automatically
     } catch (error) {
       console.error('Failed to add transaction:', error);
       alert('Failed to add transaction. Please try again.');
@@ -108,11 +101,10 @@ export default function App() {
   };
 
   const handleDeleteTransaction = async (id: string) => {
+    if (!settings.teamCode) return;
     try {
-      await dbDeleteTransaction(id, userId);
-      // Refresh from database
-      const updatedTransactions = await getAllTransactions(userId);
-      setTransactions(updatedTransactions);
+      await deleteTeamTransaction(id, settings.teamCode);
+      // Real-time subscription will update the UI automatically
     } catch (error) {
       console.error('Failed to delete transaction:', error);
       alert('Failed to delete transaction. Please try again.');
@@ -122,11 +114,23 @@ export default function App() {
   const handleSaveSettings = async (newSettings: AppSettings) => {
     await saveSettings(userId, newSettings);
     setSettings(newSettings);
+    
+    // If team code changed, load team data
+    if (newSettings.teamCode && newSettings.teamCode !== settings.teamCode) {
+      const txData = await getTeamTransactions(newSettings.teamCode);
+      setTransactions(txData);
+    }
   };
 
   const handleExport = async () => {
     try {
-      const jsonData = await exportAllData(userId);
+      const exportData = {
+        version: '2.0',
+        exportDate: new Date().toISOString(),
+        transactions,
+        settings,
+      };
+      const jsonData = JSON.stringify(exportData, null, 2);
       const blob = new Blob([jsonData], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -141,17 +145,23 @@ export default function App() {
 
   const handleImport = async (jsonString: string) => {
     try {
-      await importAllData(userId, jsonString);
-      
-      // Reload data
-      const [txData, settingsData] = await Promise.all([
-        getAllTransactions(userId),
-        getSettings(userId)
-      ]);
-      
-      setTransactions(txData);
-      if (settingsData) {
-        setSettings(settingsData);
+      const data = JSON.parse(jsonString);
+      if (data.settings) {
+        await saveSettings(userId, data.settings);
+        setSettings(data.settings);
+      }
+      if (data.transactions && Array.isArray(data.transactions) && settings.teamCode) {
+        await clearTeamTransactions(settings.teamCode);
+        for (const t of data.transactions) {
+          await addTeamTransaction(settings.teamCode, {
+            date: t.date,
+            description: t.description,
+            category: t.category,
+            amount: t.amount,
+            type: t.type,
+            notes: t.notes,
+          });
+        }
       }
       
       alert('Data imported successfully!');
@@ -161,10 +171,16 @@ export default function App() {
   };
 
   const handleClearAll = async () => {
-    await clearAllTransactions(userId);
+    if (settings.teamCode) {
+      await clearTeamTransactions(settings.teamCode);
+    }
     setTransactions([]);
-    setSettings(DEFAULT_SETTINGS);
-    await saveSettings(userId, DEFAULT_SETTINGS);
+  };
+
+  const handleGenerateTeamCode = () => {
+    const newCode = generateTeamCode();
+    const newSettings = { ...settings, teamCode: newCode };
+    handleSaveSettings(newSettings);
   };
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
@@ -228,6 +244,7 @@ export default function App() {
             onExport={handleExport}
             onImport={handleImport}
             onClearAll={handleClearAll}
+            onGenerateTeamCode={handleGenerateTeamCode}
           />
         )}
       </main>
