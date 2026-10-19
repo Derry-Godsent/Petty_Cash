@@ -111,8 +111,10 @@ export async function getSettings(userId: string): Promise<AppSettings | null> {
   return {
     recipientName: data.recipient_name || '',
     recipientPhone: data.recipient_phone || '',
+    recipientEmail: data.recipient_email || '',
     senderName: data.sender_name || '',
     companyName: data.company_name || '',
+    teamCode: data.team_code || '',
   };
 }
 
@@ -124,8 +126,10 @@ export async function saveSettings(userId: string, settings: AppSettings): Promi
       user_id: userId,
       recipient_name: settings.recipientName,
       recipient_phone: settings.recipientPhone,
+      recipient_email: settings.recipientEmail,
       sender_name: settings.senderName,
       company_name: settings.companyName,
+      team_code: settings.teamCode,
       updated_at: new Date().toISOString(),
     }, {
       onConflict: 'user_id'
@@ -183,4 +187,99 @@ export async function importAllData(userId: string, jsonString: string): Promise
   if (data.settings) {
     await saveSettings(userId, data.settings);
   }
+}
+
+// Team-based functions
+export async function getTeamTransactions(teamCode: string): Promise<Transaction[]> {
+  if (!teamCode) return [];
+  const db = getSupabase();
+  const { data, error } = await db
+    .from('transactions')
+    .select('*')
+    .eq('team_code', teamCode)
+    .order('date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching team transactions:', error);
+    throw error;
+  }
+  
+  return (data || []).map(fromDbRow);
+}
+
+export async function addTeamTransaction(teamCode: string, transaction: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>): Promise<void> {
+  const db = getSupabase();
+  const newTransaction = {
+    id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2),
+    team_code: teamCode,
+    date: transaction.date,
+    description: transaction.description,
+    category: transaction.category,
+    amount: transaction.amount,
+    type: transaction.type,
+    notes: transaction.notes || null,
+    created_at: new Date().toISOString(),
+  };
+  
+  const { error } = await db
+    .from('transactions')
+    .insert([newTransaction]);
+
+  if (error) {
+    console.error('Error adding team transaction:', error);
+    throw error;
+  }
+}
+
+export async function deleteTeamTransaction(id: string, teamCode: string): Promise<void> {
+  const db = getSupabase();
+  const { error } = await db
+    .from('transactions')
+    .delete()
+    .eq('id', id)
+    .eq('team_code', teamCode);
+
+  if (error) {
+    console.error('Error deleting team transaction:', error);
+    throw error;
+  }
+}
+
+export async function clearTeamTransactions(teamCode: string): Promise<void> {
+  const db = getSupabase();
+  const { error } = await db
+    .from('transactions')
+    .delete()
+    .eq('team_code', teamCode);
+
+  if (error) {
+    console.error('Error clearing team transactions:', error);
+    throw error;
+  }
+}
+
+// Real-time subscription
+export function subscribeToTeamTransactions(teamCode: string, callback: (transactions: Transaction[]) => void) {
+  if (!teamCode) return () => {};
+  
+  const db = getSupabase();
+  const channel = db
+    .channel(`team:${teamCode}`)
+    .on('postgres_changes', 
+      { event: '*', schema: 'public', table: 'transactions', filter: `team_code=eq.${teamCode}` },
+      async () => {
+        const transactions = await getTeamTransactions(teamCode);
+        callback(transactions);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    db.removeChannel(channel);
+  };
+}
+
+// Generate team code
+export function generateTeamCode(): string {
+  return 'TEAM-' + Math.random().toString(36).substr(2, 8).toUpperCase();
 }

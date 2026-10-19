@@ -24,8 +24,10 @@ export interface WeeklyReport {
 export interface AppSettings {
   recipientName: string;
   recipientPhone: string;
+  recipientEmail: string;
   senderName: string;
   companyName: string;
+  teamCode: string;
 }
 
 // Categories tailored for laundry, cleaning, fumigation, and marketing operations
