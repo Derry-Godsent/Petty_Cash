@@ -1,7 +1,7 @@
-import { format, startOfWeek, endOfWeek, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { formatCurrency } from '../utils/report';
 import { Transaction } from '../types';
-import { TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Calendar } from 'lucide-react';
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -10,12 +10,14 @@ interface DashboardProps {
 
 export default function Dashboard({ transactions, currentBalance }: DashboardProps) {
   const today = new Date();
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+  const startOfWeekDate = new Date(today);
+  startOfWeekDate.setDate(today.getDate() - today.getDay() + 1);
+  const endOfWeekDate = new Date(startOfWeekDate);
+  endOfWeekDate.setDate(startOfWeekDate.getDate() + 6);
 
   const thisWeekTransactions = transactions.filter((t) => {
     const tDate = parseISO(t.date);
-    return tDate >= weekStart && tDate <= weekEnd;
+    return tDate >= startOfWeekDate && tDate <= endOfWeekDate;
   });
 
   const weekIncome = thisWeekTransactions
@@ -39,102 +41,114 @@ export default function Dashboard({ transactions, currentBalance }: DashboardPro
     .slice(0, 5);
 
   return (
-    <div className="space-y-6">
-      {/* Balance Card */}
-      <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl p-6 text-white shadow-lg">
-        <div className="flex items-center gap-3 mb-2">
-          <Wallet className="w-6 h-6" />
-          <span className="text-emerald-100 text-sm font-medium">Current Cash Balance</span>
-        </div>
-        <div className="text-3xl font-bold">{formatCurrency(currentBalance)}</div>
-        <div className="mt-3 text-emerald-100 text-sm">
-          {format(weekStart, 'MMM dd')} - {format(weekEnd, 'MMM dd, yyyy')}
+    <div className="space-y-5">
+      {/* Hero Balance Card */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 p-6 text-white shadow-xl shadow-emerald-500/20">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-10 translate-x-10" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-8 -translate-x-8" />
+        <div className="relative">
+          <div className="flex items-center gap-2 mb-1">
+            <Wallet className="w-4 h-4 text-emerald-100" />
+            <span className="text-emerald-100 text-xs font-medium uppercase tracking-wider">Cash on Hand</span>
+          </div>
+          <div className="text-3xl font-extrabold tracking-tight mt-1">{formatCurrency(currentBalance)}</div>
+          <div className="flex items-center gap-1.5 mt-3 text-emerald-100 text-xs">
+            <Calendar className="w-3 h-3" />
+            <span>This week: {format(startOfWeekDate, 'MMM dd')} - {format(endOfWeekDate, 'MMM dd')}</span>
+          </div>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-green-100 rounded-lg">
+      {/* Week Stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100/80">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-xl bg-green-50 flex items-center justify-center">
               <TrendingUp className="w-4 h-4 text-green-600" />
             </div>
-            <span className="text-xs text-gray-500 font-medium">This Week In</span>
           </div>
-          <div className="text-lg font-bold text-green-600">{formatCurrency(weekIncome)}</div>
+          <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Week Income</p>
+          <p className="text-lg font-bold text-gray-800 mt-0.5">{formatCurrency(weekIncome)}</p>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <TrendingDown className="w-4 h-4 text-red-600" />
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100/80">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center">
+              <TrendingDown className="w-4 h-4 text-red-500" />
             </div>
-            <span className="text-xs text-gray-500 font-medium">This Week Out</span>
           </div>
-          <div className="text-lg font-bold text-red-600">{formatCurrency(weekExpense)}</div>
-        </div>
-
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <ArrowUpRight className="w-4 h-4 text-blue-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Total Received</span>
-          </div>
-          <div className="text-lg font-bold text-blue-600">{formatCurrency(totalIncome)}</div>
-        </div>
-
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <ArrowDownRight className="w-4 h-4 text-orange-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Total Spent</span>
-          </div>
-          <div className="text-lg font-bold text-orange-600">{formatCurrency(totalExpense)}</div>
+          <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Week Spent</p>
+          <p className="text-lg font-bold text-gray-800 mt-0.5">{formatCurrency(weekExpense)}</p>
         </div>
       </div>
 
-      {/* Recent Transactions */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="p-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-800">Recent Transactions</h3>
+      {/* All-time Stats */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100/80">
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">All Time</h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+              <ArrowUpRight className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Total Received</p>
+              <p className="text-base font-bold text-gray-800">{formatCurrency(totalIncome)}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div>
+              <p className="text-xs text-gray-400 text-right">Total Spent</p>
+              <p className="text-base font-bold text-gray-800">{formatCurrency(totalExpense)}</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+              <ArrowDownRight className="w-5 h-5 text-orange-500" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100/80 overflow-hidden">
+        <div className="px-5 pt-5 pb-3">
+          <h3 className="text-sm font-semibold text-gray-800">Recent Activity</h3>
         </div>
         <div className="divide-y divide-gray-50">
           {recentTransactions.length === 0 ? (
-            <div className="p-8 text-center text-gray-400">
-              <p>No transactions yet</p>
-              <p className="text-sm mt-1">Add your first transaction to get started</p>
+            <div className="px-5 pb-8 pt-2 text-center">
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <span className="text-2xl">📝</span>
+              </div>
+              <p className="text-sm text-gray-500 font-medium">No transactions yet</p>
+              <p className="text-xs text-gray-400 mt-1">Tap + to add your first entry</p>
             </div>
           ) : (
             recentTransactions.map((t) => (
-              <div key={t.id} className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
+              <div key={t.id} className="px-5 py-3.5 flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      t.type === 'income' ? 'bg-green-100' : 'bg-red-100'
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      t.type === 'income' ? 'bg-green-50' : 'bg-red-50'
                     }`}
                   >
                     {t.type === 'income' ? (
                       <ArrowUpRight className="w-4 h-4 text-green-600" />
                     ) : (
-                      <ArrowDownRight className="w-4 h-4 text-red-600" />
+                      <ArrowDownRight className="w-4 h-4 text-red-500" />
                     )}
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{t.description}</p>
-                    <p className="text-xs text-gray-400">
-                      {format(parseISO(t.date), 'MMM dd')} • {t.category}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{t.description}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {format(parseISO(t.date), 'MMM dd')} · {t.category}
                     </p>
                   </div>
                 </div>
                 <span
-                  className={`font-semibold text-sm ${
-                    t.type === 'income' ? 'text-green-600' : 'text-red-600'
+                  className={`font-bold text-sm shrink-0 ml-3 ${
+                    t.type === 'income' ? 'text-green-600' : 'text-red-500'
                   }`}
                 >
-                  {t.type === 'income' ? '+' : '-'}
-                  {formatCurrency(t.amount)}
+                  {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                 </span>
               </div>
             ))

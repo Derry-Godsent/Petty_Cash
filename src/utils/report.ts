@@ -1,6 +1,8 @@
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isWithinInterval, parseISO } from 'date-fns';
 import { Transaction, WeeklyReport } from '../types';
 
+export const CURRENCY = 'GH₵';
+
 export function generateWeeklyReport(transactions: Transaction[], weekOffset: number = 0): WeeklyReport {
   const today = new Date();
   const targetDate = new Date(today);
@@ -32,27 +34,71 @@ export function generateWeeklyReport(transactions: Transaction[], weekOffset: nu
   };
 }
 
-export function formatWhatsAppMessage(report: WeeklyReport, bossName: string = ''): string {
+export function formatCurrency(amount: number): string {
+  return `${CURRENCY}${amount.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function generateShareableLink(report: WeeklyReport, senderName: string, companyName: string): string {
+  const shareData = {
+    s: senderName,
+    c: companyName,
+    sd: report.startDate,
+    ed: report.endDate,
+    ti: report.totalIncome,
+    te: report.totalExpense,
+    b: report.balance,
+    t: report.transactions.map((t) => ({
+      d: t.date,
+      desc: t.description,
+      cat: t.category,
+      amt: t.amount,
+      type: t.type,
+      note: t.notes || '',
+    })),
+    gen: new Date().toISOString(),
+  };
+
+  const encoded = btoa(encodeURIComponent(JSON.stringify(shareData)));
+  const baseUrl = window.location.origin + window.location.pathname;
+  return `${baseUrl}#report=${encoded}`;
+}
+
+export function parseSharedReport(hash: string): any | null {
+  try {
+    const match = hash.match(/report=(.+)/);
+    if (!match) return null;
+    const decoded = JSON.parse(decodeURIComponent(atob(match[1])));
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+export function formatWhatsAppMessage(
+  report: WeeklyReport,
+  bossName: string,
+  senderName: string,
+  shareLink: string
+): string {
   const dateRange = `${format(parseISO(report.startDate), 'MMM dd')} - ${format(parseISO(report.endDate), 'MMM dd, yyyy')}`;
 
   let message = `📊 *PETTY CASH WEEKLY REPORT*\n`;
-  message += `📅 Period: ${dateRange}\n`;
-  if (bossName) message += `👤 To: ${bossName}\n`;
+  message += `📅 ${dateRange}\n`;
+  if (senderName) message += `👤 From: ${senderName}\n`;
+  if (bossName) message += `📩 To: ${bossName}\n`;
   message += `\n`;
   message += `💰 *SUMMARY*\n`;
   message += `━━━━━━━━━━━━━━━━━━\n`;
-  message += `✅ Total Received: ${formatCurrency(report.totalIncome)}\n`;
-  message += `❌ Total Spent: ${formatCurrency(report.totalExpense)}\n`;
+  message += `✅ Received: ${formatCurrency(report.totalIncome)}\n`;
+  message += `❌ Spent: ${formatCurrency(report.totalExpense)}\n`;
   message += `💵 Cash Balance: ${formatCurrency(report.balance)}\n`;
   message += `━━━━━━━━━━━━━━━━━━\n\n`;
 
   if (report.transactions.length > 0) {
-    // Group by date
-    const grouped: Record<string, Transaction[]> = {};
+    const grouped: Record<string, typeof report.transactions> = {};
     report.transactions.forEach((t) => {
-      const dateKey = t.date;
-      if (!grouped[dateKey]) grouped[dateKey] = [];
-      grouped[dateKey].push(t);
+      if (!grouped[t.date]) grouped[t.date] = [];
+      grouped[t.date].push(t);
     });
 
     message += `📝 *TRANSACTIONS*\n`;
@@ -64,8 +110,8 @@ export function formatWhatsAppMessage(report: WeeklyReport, bossName: string = '
         message += `\n📅 *${format(parseISO(dateKey), 'EEE, MMM dd')}*\n`;
         grouped[dateKey].forEach((t) => {
           const icon = t.type === 'income' ? '🟢' : '🔴';
-          message += `${icon} ${t.description} - ${formatCurrency(t.amount)}\n`;
-          message += `   📁 ${t.category}\n`;
+          message += `${icon} ${t.description}\n`;
+          message += `   ${formatCurrency(t.amount)} • ${t.category}\n`;
           if (t.notes) message += `   📌 ${t.notes}\n`;
         });
       });
@@ -74,24 +120,10 @@ export function formatWhatsAppMessage(report: WeeklyReport, bossName: string = '
   }
 
   message += `\n━━━━━━━━━━━━━━━━━━\n`;
-  message += `_Generated on ${format(new Date(), 'MMM dd, yyyy h:mm a')}_`;
+  message += `🔗 *View Full Report:*\n${shareLink}\n`;
+  message += `\n_Generated ${format(new Date(), 'MMM dd, yyyy h:mm a')}_`;
 
   return message;
-}
-
-export function formatCurrency(amount: number): string {
-  return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-export function getWeekDays(weekOffset: number = 0): string[] {
-  const today = new Date();
-  const targetDate = new Date(today);
-  targetDate.setDate(today.getDate() + weekOffset * 7);
-
-  const start = startOfWeek(targetDate, { weekStartsOn: 1 });
-  const end = endOfWeek(targetDate, { weekStartsOn: 1 });
-
-  return eachDayOfInterval({ start, end }).map((d) => format(d, 'yyyy-MM-dd'));
 }
 
 export function openWhatsApp(phoneNumber: string, message: string): void {

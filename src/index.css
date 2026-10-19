@@ -4,18 +4,37 @@ html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f9fafb;
+  -webkit-tap-highlight-color: transparent;
+  background-color: #f8fafb;
+  overscroll-behavior: none;
+}
+
+/* Slide up animation for modals */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 4px;
+  width: 3px;
 }
 
 ::-webkit-scrollbar-track {
@@ -23,12 +42,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 2px;
+  background: #e2e8f0;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: #cbd5e1;
 }
 
 /* Remove number input arrows */
@@ -42,9 +61,38 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
-/* Safe area for mobile */
+/* Remove default focus outline and use custom */
+*:focus {
+  outline: none;
+}
+
+/* Prevent text selection on buttons */
+button, a {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Safe area for mobile notch */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   nav {
     padding-bottom: env(safe-area-inset-bottom);
   }
+}
+
+/* Smooth transitions */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Fix for iOS input zoom */
+@media screen and (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Ensure proper rendering of gradients */
+.bg-gradient-to-br {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
