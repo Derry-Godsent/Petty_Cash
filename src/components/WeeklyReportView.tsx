@@ -1,25 +1,22 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { Transaction } from '../types';
-import { generateWeeklyReport, formatWhatsAppMessage, formatCurrency, openWhatsApp, generateShareableLink } from '../utils/report';
-import { ChevronLeft, ChevronRight, MessageCircle, Link2, Check, Copy, ExternalLink } from 'lucide-react';
+import { generateWeeklyReport, formatWhatsAppMessage, formatCurrency, openWhatsApp } from '../utils/report';
+import { ChevronLeft, ChevronRight, MessageCircle, Check, Copy } from 'lucide-react';
 
 interface WeeklyReportViewProps {
   transactions: Transaction[];
   recipientPhone: string;
   recipientName: string;
   senderName: string;
-  companyName: string;
 }
 
-export default function WeeklyReportView({ transactions, recipientPhone, recipientName, senderName, companyName }: WeeklyReportViewProps) {
+export default function WeeklyReportView({ transactions, recipientPhone, recipientName, senderName }: WeeklyReportViewProps) {
   const [weekOffset, setWeekOffset] = useState(0);
-  const [copied, setCopied] = useState<'link' | 'msg' | null>(null);
-  const [showLink, setShowLink] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const report = generateWeeklyReport(transactions, weekOffset);
-  const shareLink = generateShareableLink(report, senderName, companyName);
-  const message = formatWhatsAppMessage(report, recipientName, senderName, shareLink);
+  const message = formatWhatsAppMessage(report, recipientName, senderName);
 
   const getWeekLabel = () => {
     if (weekOffset === 0) return 'This Week';
@@ -29,20 +26,20 @@ export default function WeeklyReportView({ transactions, recipientPhone, recipie
     return `${weekOffset} Weeks Ahead`;
   };
 
-  const handleCopy = async (text: string, type: 'link' | 'msg') => {
+  const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(text);
-      setCopied(type);
-      setTimeout(() => setCopied(null), 2000);
+      await navigator.clipboard.writeText(message);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
       const textarea = document.createElement('textarea');
-      textarea.value = text;
+      textarea.value = message;
       document.body.appendChild(textarea);
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
-      setCopied(type);
-      setTimeout(() => setCopied(null), 2000);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -128,61 +125,16 @@ export default function WeeklyReportView({ transactions, recipientPhone, recipie
         </div>
       )}
 
-      {/* Share Link Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <button
-          onClick={() => setShowLink(!showLink)}
-          className="w-full px-5 py-4 flex items-center justify-between"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
-              <Link2 className="w-4 h-4 text-gray-600" />
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-gray-900">Shareable Report Link</p>
-              <p className="text-xs text-gray-500">Send this link for full report view</p>
-            </div>
-          </div>
-          <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${showLink ? 'rotate-90' : ''}`} />
-        </button>
-        
-        {showLink && (
-          <div className="px-5 pb-4 space-y-3">
-            <div className="bg-gray-50 rounded-lg p-3 break-all">
-              <p className="text-xs text-gray-600 font-mono leading-relaxed">{shareLink}</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleCopy(shareLink, 'link')}
-                className="flex-1 py-2.5 bg-slate-800 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-              >
-                {copied === 'link' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                {copied === 'link' ? 'Copied' : 'Copy Link'}
-              </button>
-              <a
-                href={shareLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-2.5 px-4 bg-gray-100 text-gray-600 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 active:bg-gray-200 transition-colors"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Preview
-              </a>
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* WhatsApp Message Preview */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-5 pt-4 pb-3 border-b border-gray-50 flex items-center justify-between">
           <h3 className="font-semibold text-gray-900 text-sm">WhatsApp Message</h3>
           <button
-            onClick={() => handleCopy(message, 'msg')}
+            onClick={handleCopy}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-500 text-xs font-medium active:bg-gray-200 transition-colors"
           >
-            {copied === 'msg' ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-            {copied === 'msg' ? 'Copied' : 'Copy'}
+            {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+            {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
         <div className="p-4 bg-gray-50 max-h-48 overflow-y-auto">

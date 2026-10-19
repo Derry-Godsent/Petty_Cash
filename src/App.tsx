@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Transaction, AppSettings } from './types';
-import { parseSharedReport } from './utils/report';
+
 import { 
   getAllTransactions, 
   addTransaction as dbAddTransaction, 
@@ -17,7 +17,7 @@ import AddTransaction from './components/AddTransaction';
 import TransactionList from './components/TransactionList';
 import WeeklyReportView from './components/WeeklyReportView';
 import Settings from './components/Settings';
-import BossView from './components/BossView';
+
 import { LayoutDashboard, PlusCircle, List, FileText, Settings as SettingsIcon } from 'lucide-react';
 
 type Tab = 'dashboard' | 'transactions' | 'report' | 'settings';
@@ -34,7 +34,7 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [sharedData, setSharedData] = useState<any>(null);
+
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string>('');
 
@@ -77,21 +77,9 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [userId]);
 
-  // Check for shared report in URL hash
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash) {
-      const data = parseSharedReport(hash);
-      if (data) {
-        setSharedData(data);
-      }
-    }
-  }, []);
 
-  // If viewing a shared report, show BossView
-  if (sharedData) {
-    return <BossView data={sharedData} />;
-  }
+
+
 
   const currentBalance = useMemo(() => {
     return transactions.reduce((balance, t) => {
@@ -200,17 +188,17 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-100/50 sticky top-0 z-40">
-        <div className="max-w-lg mx-auto px-5 py-3.5 flex items-center justify-between">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
+        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold text-gray-900 tracking-tight">Petty Cash</h1>
+            <h1 className="text-base font-bold text-gray-900 tracking-tight">Petty Cash</h1>
             {settings.companyName && (
-              <p className="text-xs text-gray-500">{settings.companyName}</p>
+              <p className="text-[11px] text-gray-500">{settings.companyName}</p>
             )}
           </div>
           <button
             onClick={() => setShowAddForm(true)}
-            className="w-11 h-11 bg-slate-800 text-white rounded-xl flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+            className="w-10 h-10 bg-slate-800 text-white rounded-xl flex items-center justify-center shadow-md active:scale-95 transition-transform"
           >
             <PlusCircle className="w-5 h-5" />
           </button>
@@ -218,7 +206,7 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-4 pb-28">
+      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-3 pb-20">
         {activeTab === 'dashboard' && (
           <Dashboard transactions={transactions} currentBalance={currentBalance} />
         )}
@@ -231,7 +219,6 @@ export default function App() {
             recipientPhone={settings.recipientPhone}
             recipientName={settings.recipientName}
             senderName={settings.senderName}
-            companyName={settings.companyName}
           />
         )}
         {activeTab === 'settings' && (
@@ -246,26 +233,25 @@ export default function App() {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-gray-100/50 z-40">
-        <div className="max-w-lg mx-auto flex px-2">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 pb-[env(safe-area-inset-bottom)]">
+        <div className="max-w-lg mx-auto flex">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex flex-col items-center py-3 transition-all ${
+              className={`flex-1 flex flex-col items-center py-2 transition-all ${
                 activeTab === tab.id
                   ? 'text-slate-800'
                   : 'text-gray-400 active:text-gray-600'
               }`}
             >
-              <div className={`p-1 rounded-lg transition-all ${activeTab === tab.id ? 'bg-gray-100' : ''}`}>
+              <div className={`p-1.5 rounded-lg transition-all ${activeTab === tab.id ? 'bg-gray-100' : ''}`}>
                 {tab.icon}
               </div>
-              <span className="text-[10px] mt-0.5 font-semibold">{tab.label}</span>
+              <span className="text-[10px] mt-0.5 font-medium">{tab.label}</span>
             </button>
           ))}
         </div>
-        <div className="h-[env(safe-area-inset-bottom)]" />
       </nav>
 
       {/* Add Transaction Modal */}

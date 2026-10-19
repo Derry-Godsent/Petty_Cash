@@ -38,47 +38,12 @@ export function formatCurrency(amount: number): string {
   return `${CURRENCY}${amount.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function generateShareableLink(report: WeeklyReport, senderName: string, companyName: string): string {
-  const shareData = {
-    s: senderName,
-    c: companyName,
-    sd: report.startDate,
-    ed: report.endDate,
-    ti: report.totalIncome,
-    te: report.totalExpense,
-    b: report.balance,
-    t: report.transactions.map((t) => ({
-      d: t.date,
-      desc: t.description,
-      cat: t.category,
-      amt: t.amount,
-      type: t.type,
-      note: t.notes || '',
-    })),
-    gen: new Date().toISOString(),
-  };
 
-  const encoded = btoa(encodeURIComponent(JSON.stringify(shareData)));
-  const baseUrl = window.location.origin + window.location.pathname;
-  return `${baseUrl}#report=${encoded}`;
-}
-
-export function parseSharedReport(hash: string): any | null {
-  try {
-    const match = hash.match(/report=(.+)/);
-    if (!match) return null;
-    const decoded = JSON.parse(decodeURIComponent(atob(match[1])));
-    return decoded;
-  } catch {
-    return null;
-  }
-}
 
 export function formatWhatsAppMessage(
   report: WeeklyReport,
   recipientName: string,
-  senderName: string,
-  shareLink: string
+  senderName: string
 ): string {
   const dateRange = `${format(parseISO(report.startDate), 'MMM dd')} - ${format(parseISO(report.endDate), 'MMM dd, yyyy')}`;
 
@@ -120,7 +85,6 @@ export function formatWhatsAppMessage(
   }
 
   message += `\n━━━━━━━━━━━━━━━━━━\n`;
-  message += `View Full Report:\n${shareLink}\n`;
   message += `\nGenerated ${format(new Date(), 'MMM dd, yyyy h:mm a')}`;
 
   return message;
