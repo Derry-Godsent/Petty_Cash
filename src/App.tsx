@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Transaction, AppSettings } from './types';
-import { parseSharedReport } from './utils/report';
+
 import { 
   getAllTransactions, 
   addTransaction as dbAddTransaction, 
@@ -17,7 +17,7 @@ import AddTransaction from './components/AddTransaction';
 import TransactionList from './components/TransactionList';
 import WeeklyReportView from './components/WeeklyReportView';
 import Settings from './components/Settings';
-import BossView from './components/BossView';
+
 import { LayoutDashboard, PlusCircle, List, FileText, Settings as SettingsIcon } from 'lucide-react';
 
 type Tab = 'dashboard' | 'transactions' | 'report' | 'settings';
@@ -34,7 +34,7 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [sharedData, setSharedData] = useState<any>(null);
+
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string>('');
 
@@ -77,21 +77,9 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [userId]);
 
-  // Check for shared report in URL hash
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash) {
-      const data = parseSharedReport(hash);
-      if (data) {
-        setSharedData(data);
-      }
-    }
-  }, []);
 
-  // If viewing a shared report, show BossView
-  if (sharedData) {
-    return <BossView data={sharedData} />;
-  }
+
+
 
   const currentBalance = useMemo(() => {
     return transactions.reduce((balance, t) => {
@@ -231,7 +219,6 @@ export default function App() {
             recipientPhone={settings.recipientPhone}
             recipientName={settings.recipientName}
             senderName={settings.senderName}
-            companyName={settings.companyName}
           />
         )}
         {activeTab === 'settings' && (
