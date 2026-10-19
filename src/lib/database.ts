@@ -1,8 +1,16 @@
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Transaction, AppSettings } from '../types';
 
+function getSupabase() {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured. Please check your environment variables.');
+  }
+  return supabase;
+}
+
 export async function getAllTransactions(userId: string): Promise<Transaction[]> {
-  const { data, error } = await supabase
+  const db = getSupabase();
+  const { data, error } = await db
     .from('transactions')
     .select('*')
     .eq('user_id', userId)
@@ -13,7 +21,8 @@ export async function getAllTransactions(userId: string): Promise<Transaction[]>
 }
 
 export async function addTransaction(transaction: Transaction): Promise<void> {
-  const { error } = await supabase
+  const db = getSupabase();
+  const { error } = await db
     .from('transactions')
     .insert([transaction]);
 
@@ -21,7 +30,8 @@ export async function addTransaction(transaction: Transaction): Promise<void> {
 }
 
 export async function deleteTransaction(id: string, userId: string): Promise<void> {
-  const { error } = await supabase
+  const db = getSupabase();
+  const { error } = await db
     .from('transactions')
     .delete()
     .eq('id', id)
@@ -31,7 +41,8 @@ export async function deleteTransaction(id: string, userId: string): Promise<voi
 }
 
 export async function clearAllTransactions(userId: string): Promise<void> {
-  const { error } = await supabase
+  const db = getSupabase();
+  const { error } = await db
     .from('transactions')
     .delete()
     .eq('user_id', userId);
@@ -40,7 +51,8 @@ export async function clearAllTransactions(userId: string): Promise<void> {
 }
 
 export async function getSettings(userId: string): Promise<AppSettings | null> {
-  const { data, error } = await supabase
+  const db = getSupabase();
+  const { data, error } = await db
     .from('settings')
     .select('*')
     .eq('user_id', userId)
@@ -60,7 +72,8 @@ export async function getSettings(userId: string): Promise<AppSettings | null> {
 }
 
 export async function saveSettings(userId: string, settings: AppSettings): Promise<void> {
-  const { error } = await supabase
+  const db = getSupabase();
+  const { error } = await db
     .from('settings')
     .upsert({
       user_id: userId,
@@ -98,12 +111,13 @@ export async function importAllData(userId: string, jsonString: string): Promise
   
   // Import transactions
   if (data.transactions && Array.isArray(data.transactions)) {
+    const db = getSupabase();
     const transactionsToInsert = data.transactions.map((t: any) => ({
       ...t,
       user_id: userId,
     }));
     
-    const { error } = await supabase
+    const { error } = await db
       .from('transactions')
       .insert(transactionsToInsert);
     
