@@ -9,17 +9,16 @@ import {
   getSettings,
   saveSettings,
   exportAllData,
-  importAllData,
-  shouldRemindBackup,
-  setLastBackupDate
-} from './utils/db';
+  importAllData
+} from './lib/database';
+import { getUserId } from './lib/auth';
 import Dashboard from './components/Dashboard';
 import AddTransaction from './components/AddTransaction';
 import TransactionList from './components/TransactionList';
 import WeeklyReportView from './components/WeeklyReportView';
 import Settings from './components/Settings';
 import BossView from './components/BossView';
-import { LayoutDashboard, PlusCircle, List, FileText, Settings as SettingsIcon, Database, AlertCircle } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, List, FileText, Settings as SettingsIcon } from 'lucide-react';
 
 type Tab = 'dashboard' | 'transactions' | 'report' | 'settings';
 
@@ -37,28 +36,26 @@ export default function App() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [sharedData, setSharedData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [showBackupReminder, setShowBackupReminder] = useState(false);
+  const [userId, setUserId] = useState<string>('');
 
-  // Load data from IndexedDB
+  // Load data from Supabase
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [txData, settingsData, shouldRemind] = await Promise.all([
-          getAllTransactions(),
-          getSettings(),
-          shouldRemindBackup()
+        const uid = getUserId();
+        setUserId(uid);
+        
+        const [txData, settingsData] = await Promise.all([
+          getAllTransactions(uid),
+          getSettings(uid)
         ]);
         
         setTransactions(txData);
         if (settingsData) {
           setSettings(settingsData);
         }
-        
-        if (shouldRemind && txData.length > 0) {
-          setShowBackupReminder(true);
-        }
       } catch (error) {
-        console.error('Failed to load data:', error);
+        console.error('Failed to load ', error);
       } finally {
         setLoading(false);
       }
@@ -89,10 +86,11 @@ export default function App() {
     }, 0);
   }, [transactions]);
 
-  const handleAddTransaction = async (data: Omit<Transaction, 'id' | 'createdAt'>) => {
+  const handleAddTransaction = async (data: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>) => {
     const newTransaction: Transaction = {
       ...data,
       id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2),
+      user_id: userId,
       createdAt: new Date().toISOString(),
     };
     
@@ -101,18 +99,18 @@ export default function App() {
   };
 
   const handleDeleteTransaction = async (id: string) => {
-    await dbDeleteTransaction(id);
+    await dbDeleteTransaction(id, userId);
     setTransactions((prev) => prev.filter((t) => t.id !== id));
   };
 
   const handleSaveSettings = async (newSettings: AppSettings) => {
-    await saveSettings(newSettings);
+    await saveSettings(userId, newSettings);
     setSettings(newSettings);
   };
 
   const handleExport = async () => {
     try {
-      const jsonData = await exportAllData();
+      const jsonData = await exportAllData(userId);
       const blob = new Blob([jsonData], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -120,9 +118,6 @@ export default function App() {
       a.download = `petty-cash-backup-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      
-      await setLastBackupDate(new Date().toISOString());
-      setShowBackupReminder(false);
     } catch (error) {
       alert('Failed to export data');
     }
@@ -130,12 +125,12 @@ export default function App() {
 
   const handleImport = async (jsonString: string) => {
     try {
-      await importAllData(jsonString);
+      await importAllData(userId, jsonString);
       
       // Reload data
       const [txData, settingsData] = await Promise.all([
-        getAllTransactions(),
-        getSettings()
+        getAllTransactions(userId),
+        getSettings(userId)
       ]);
       
       setTransactions(txData);
@@ -150,10 +145,10 @@ export default function App() {
   };
 
   const handleClearAll = async () => {
-    await clearAllTransactions();
+    await clearAllTransactions(userId);
     setTransactions([]);
     setSettings(DEFAULT_SETTINGS);
-    await saveSettings(DEFAULT_SETTINGS);
+    await saveSettings(userId, DEFAULT_SETTINGS);
   };
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
@@ -193,35 +188,6 @@ export default function App() {
           </button>
         </div>
       </header>
-
-      {/* Backup Reminder */}
-      {showBackupReminder && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
-          <div className="max-w-lg mx-auto flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm text-amber-900 font-medium">Backup Reminder</p>
-              <p className="text-xs text-amber-700 mt-0.5">
-                It's been a while since your last backup. Export your data to prevent loss.
-              </p>
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={handleExport}
-                  className="text-xs font-semibold text-amber-900 bg-amber-100 px-3 py-1.5 rounded-lg active:bg-amber-200"
-                >
-                  Backup Now
-                </button>
-                <button
-                  onClick={() => setShowBackupReminder(false)}
-                  className="text-xs font-medium text-amber-700 px-3 py-1.5"
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Main Content */}
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-4 pb-28">
@@ -271,7 +237,6 @@ export default function App() {
             </button>
           ))}
         </div>
-        {/* Safe area spacer for mobile */}
         <div className="h-[env(safe-area-inset-bottom)]" />
       </nav>
 

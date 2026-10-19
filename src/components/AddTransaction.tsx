@@ -4,7 +4,7 @@ import { Transaction, TransactionType, EXPENSE_CATEGORIES, INCOME_CATEGORIES } f
 import { X } from 'lucide-react';
 
 interface AddTransactionProps {
-  onAdd: (transaction: Omit<Transaction, 'id' | 'createdAt'>) => void;
+  onAdd: (transaction: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>) => void;
   onClose: () => void;
 }
 
