@@ -37,3 +37,5 @@ playwright-report/
 
 # Private notification credentials
 .env.push.local
+
+/notification-secrets.txt

@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "test": "playwright test",
     "test:security": "node --test tests/*.test.mjs",
-    "push:keys": "node scripts/generate-push-keys.mjs"
+    "push:keys": "node scripts/generate-push-keys.mjs",
+    "test:production": "npm run build && playwright test --config playwright.production.config.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
