@@ -245,9 +245,9 @@ function App() {
   );
 
   return (
-    <div className="app-shell bg-gray-50 flex flex-col">
+    <div className="app-shell app-frame bg-gray-50 flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
+      <header className="app-header bg-white border-b border-gray-200 z-40 pt-[env(safe-area-inset-top)]">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-base font-bold text-gray-900 tracking-tight">Petty Cash</h1>
@@ -301,11 +301,11 @@ function App() {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 pb-[env(safe-area-inset-bottom)]">
-        <div className="max-w-lg mx-auto flex">
+      <nav aria-label="Main navigation" className="bottom-nav bg-white border-t border-gray-200 z-40">
+        <div className="bottom-nav-items max-w-lg mx-auto flex">
           <button
             onClick={() => setActiveTab('dashboard')}
-            className={`flex-1 flex flex-col items-center py-2 transition-all ${
+            className={`flex-1 flex flex-col items-center justify-center py-1 transition-all ${
               activeTab === 'dashboard' ? 'text-slate-800' : 'text-gray-400'
             }`}
           >
@@ -316,7 +316,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveTab('transactions')}
-            className={`flex-1 flex flex-col items-center py-2 transition-all ${
+            className={`flex-1 flex flex-col items-center justify-center py-1 transition-all ${
               activeTab === 'transactions' ? 'text-slate-800' : 'text-gray-400'
             }`}
           >
@@ -327,7 +327,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveTab('report')}
-            className={`flex-1 flex flex-col items-center py-2 transition-all ${
+            className={`flex-1 flex flex-col items-center justify-center py-1 transition-all ${
               activeTab === 'report' ? 'text-slate-800' : 'text-gray-400'
             }`}
           >
@@ -338,7 +338,7 @@ function App() {
           </button>
           {isOwner && <button
             onClick={() => setActiveTab('settings')}
-            className={`flex-1 flex flex-col items-center py-2 transition-all ${
+            className={`flex-1 flex flex-col items-center justify-center py-1 transition-all ${
               activeTab === 'settings' ? 'text-slate-800' : 'text-gray-400'
             }`}
           >

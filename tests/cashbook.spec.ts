@@ -262,3 +262,34 @@ test('denied push permission never registers a server subscription', async ({ pa
   expect(message).toBe('Notifications are blocked in device settings.');
   expect(registrations).toBe(0);
 });
+
+test('bottom navigation stays inside the app viewport while only content scrolls', async ({ page }) => {
+  await mockSupabase(page, { existing: true });
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: 'Main navigation' });
+  await expect(nav).toBeVisible();
+  // Simulate a home indicator on both short and tall phone viewports.
+  await page.addStyleTag({ content: '.bottom-nav { padding-bottom: 34px; }' });
+  for (const height of [844, 568, 932]) {
+    await page.setViewportSize({ width: 390, height });
+    for (const tab of ['Home', 'History', 'Report', 'Settings']) {
+      await page.getByRole('button', { name: tab, exact: true }).click();
+      const metrics = await nav.evaluate(element => {
+        const bounds = element.getBoundingClientRect();
+        const main = document.querySelector('main')!;
+        main.scrollTop = main.scrollHeight;
+        return {
+          bottom: bounds.bottom, height: bounds.height, viewport: window.innerHeight,
+          mainBottom: main.getBoundingClientRect().bottom,
+          navTop: bounds.top, documentScroll: document.scrollingElement!.scrollTop,
+          overflow: getComputedStyle(main).overflowY,
+        };
+      });
+      expect(Math.abs(metrics.bottom - metrics.viewport)).toBeLessThanOrEqual(1);
+      expect(metrics.height).toBe(99); // 64px controls + 34px safe area + 1px border
+      expect(metrics.mainBottom).toBeLessThanOrEqual(metrics.navTop + 1);
+      expect(metrics.documentScroll).toBe(0);
+      expect(metrics.overflow).toBe('auto');
+    }
+  }
+});
