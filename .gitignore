@@ -29,3 +29,11 @@ yarn-error.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Test artifacts and local tooling
+.venv/
+test-results/
+playwright-report/
+
+# Private notification credentials
+.env.push.local

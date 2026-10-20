@@ -1,3 +1,5 @@
+-- LEGACY / INSECURE: Do not run for the current app. See MOBILE_SUPABASE_SETUP.md
+-- and supabase/migrations/202610200001_secure_cashbook.sql instead.
 -- Complete database migration for Petty Cash Tracker
 -- Run this in Supabase SQL Editor
 

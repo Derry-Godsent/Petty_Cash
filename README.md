@@ -1,3 +1,5 @@
+> **Current mobile + private-link update:** Follow [MOBILE_SUPABASE_SETUP.md](./MOBILE_SUPABASE_SETUP.md) before deploying. No registration or Anonymous Sign-Ins are needed. Back up existing data and run `supabase/migrations/202610200002_private_links.sql`. Owners and viewers use separate private links. The older setup instructions below describe the legacy app and must not be used for database access policies.
+
 # Petty Cash Tracker
 
 A mobile-optimized petty cash tracking application with real-time team sync, built with React, TypeScript, Tailwind CSS, and Supabase.

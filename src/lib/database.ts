@@ -1,195 +1,56 @@
-import { supabase } from './supabase';
+import { configurationError, supabase } from './supabase';
 import { Transaction, AppSettings } from '../types';
 
-// Generate unique user ID
-export const getUserId = (): string => {
-  let userId = localStorage.getItem('petty_cash_user_id');
-  if (!userId) {
-    userId = 'user_' + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('petty_cash_user_id', userId);
-  }
-  return userId;
+export type TransactionInput = Omit<Transaction, 'id' | 'createdAt' | 'user_id'>;
+export interface Cashbook { id: string; role: 'owner' | 'viewer'; viewerKeyHash?: string; settings: AppSettings; transactions: Transaction[] }
+export const DEFAULT_SETTINGS: AppSettings = {
+  recipientName: '', recipientPhone: '', recipientEmail: '', senderName: '', companyName: '',
 };
 
-// Helper function to map database row to Transaction type
-const mapDbRowToTransaction = (row: any): Transaction => ({
-  id: row.id,
-  user_id: row.user_id || '',
-  date: row.date,
-  description: row.description,
-  category: row.category,
-  amount: parseFloat(row.amount),
-  type: row.type,
-  notes: row.notes || undefined,
-  createdAt: row.created_at,
+async function rpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
+  if (configurationError) throw new Error(configurationError);
+  const { data, error } = await supabase.rpc(name, args);
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  return data as T;
+}
+
+const mapRow = (row: any): Transaction => ({
+  id: row.id, user_id: '', date: row.date, description: row.description,
+  category: row.category, amount: Number(row.amount), type: row.type,
+  notes: row.notes || undefined, createdAt: row.created_at,
 });
-
-// Transactions
-export const getTransactions = async (userId: string): Promise<Transaction[]> => {
-  const { data, error } = await supabase
-    .from('transactions')
-    .select('*')
-    .eq('user_id', userId)
-    .order('date', { ascending: false });
-
-  if (error) throw error;
-  return (data || []).map(mapDbRowToTransaction);
+const mapBook = (data: any): Cashbook => {
+  if (!data || !['owner', 'viewer'].includes(data.role)) throw new Error('Invalid cashbook response. Check your database setup.');
+  return { id: data.id, role: data.role, viewerKeyHash: data.viewer_key_hash || undefined, settings: { ...DEFAULT_SETTINGS, ...data.settings }, transactions: (data.transactions || []).map(mapRow) };
 };
 
-export const addTransaction = async (transaction: Omit<Transaction, 'id' | 'createdAt'>): Promise<void> => {
-  console.log('Adding transaction:', transaction);
-  
-  const id = crypto.randomUUID();
-  const created_at = new Date().toISOString();
-  
-  const { data, error } = await supabase
-    .from('transactions')
-    .insert([{
-      id,
-      user_id: transaction.user_id,
-      date: transaction.date,
-      description: transaction.description,
-      category: transaction.category,
-      amount: transaction.amount,
-      type: transaction.type,
-      notes: transaction.notes || null,
-      team_code: null,
-      created_at
-    }])
-    .select();
+export async function openCashbook(token: string): Promise<Cashbook> {
+  return mapBook(await rpc('pc_open', { p_token: token }));
+}
+export async function createCashbook(token: string, viewerToken: string): Promise<Cashbook> {
+  return mapBook(await rpc('pc_create', { p_owner_token: token, p_viewer_token: viewerToken }));
+}
+export async function addTransaction(token: string, transaction: TransactionInput, id: string): Promise<Transaction> {
+  validateTransaction(transaction);
+  return mapRow(await rpc('pc_add', { p_token: token, p_transaction: { ...transaction, id } }));
+}
+export async function deleteTransaction(token: string, id: string): Promise<void> {
+  await rpc('pc_delete', { p_token: token, p_id: id });
+}
+export async function saveSettings(token: string, settings: AppSettings): Promise<void> {
+  await rpc('pc_save_settings', { p_token: token, p_settings: settings });
+}
+export async function clearCashbook(token: string): Promise<void> {
+  await rpc('pc_clear', { p_token: token });
+}
+export async function replaceViewerLink(token: string, viewerToken: string): Promise<void> {
+  await rpc('pc_replace_viewer', { p_token: token, p_viewer_token: viewerToken });
+}
 
-  if (error) {
-    console.error('Add transaction error:', error);
-    throw new Error(`Failed to add transaction: ${error.message}`);
-  }
-  
-  console.log('Transaction added successfully:', data);
-};
-
-export const deleteTransaction = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('transactions')
-    .delete()
-    .eq('id', id);
-
-  if (error) throw error;
-};
-
-// Settings
-export const getSettings = async (userId: string): Promise<AppSettings | null> => {
-  const { data, error } = await supabase
-    .from('settings')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-
-  if (error) {
-    if (error.code === 'PGRST116') return null; // No rows
-    throw error;
-  }
-
-  return {
-    recipientName: data.recipient_name || '',
-    recipientPhone: data.recipient_phone || '',
-    recipientEmail: data.recipient_email || '',
-    senderName: data.sender_name || '',
-    companyName: data.company_name || '',
-    teamCode: data.team_code || '',
-  };
-};
-
-export const saveSettings = async (userId: string, settings: AppSettings): Promise<void> => {
-  console.log('Saving settings for user:', userId, settings);
-  
-  const { data, error } = await supabase
-    .from('settings')
-    .upsert({
-      user_id: userId,
-      recipient_name: settings.recipientName,
-      recipient_phone: settings.recipientPhone,
-      recipient_email: settings.recipientEmail,
-      sender_name: settings.senderName,
-      company_name: settings.companyName,
-      team_code: settings.teamCode,
-      updated_at: new Date().toISOString()
-    }, {
-      onConflict: 'user_id'
-    })
-    .select();
-
-  if (error) {
-    console.error('Save settings error:', error);
-    throw new Error(`Failed to save settings: ${error.message}`);
-  }
-  
-  console.log('Settings saved successfully:', data);
-};
-
-// Team functions
-export const getTeamTransactions = async (teamCode: string): Promise<Transaction[]> => {
-  const { data, error } = await supabase
-    .from('transactions')
-    .select('*')
-    .eq('team_code', teamCode)
-    .order('date', { ascending: false });
-
-  if (error) throw error;
-  return (data || []).map(mapDbRowToTransaction);
-};
-
-export const addTeamTransaction = async (teamCode: string, transaction: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>): Promise<void> => {
-  const id = crypto.randomUUID();
-  const created_at = new Date().toISOString();
-  
-  const { error } = await supabase
-    .from('transactions')
-    .insert([{
-      id,
-      user_id: null,
-      date: transaction.date,
-      description: transaction.description,
-      category: transaction.category,
-      amount: transaction.amount,
-      type: transaction.type,
-      notes: transaction.notes || null,
-      team_code: teamCode,
-      created_at
-    }]);
-
-  if (error) {
-    console.error('Add team transaction error:', error);
-    throw new Error(`Failed to add team transaction: ${error.message}`);
-  }
-};
-
-export const deleteTeamTransaction = async (id: string, teamCode: string): Promise<void> => {
-  const { error } = await supabase
-    .from('transactions')
-    .delete()
-    .eq('id', id)
-    .eq('team_code', teamCode);
-
-  if (error) throw error;
-};
-
-export const generateTeamCode = (): string => {
-  return 'TEAM-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-};
-
-// Real-time subscription
-export const subscribeToTeamTransactions = (teamCode: string, callback: (transactions: Transaction[]) => void) => {
-  const channel = supabase
-    .channel(`team:${teamCode}`)
-    .on('postgres_changes', 
-      { event: '*', schema: 'public', table: 'transactions', filter: `team_code=eq.${teamCode}` },
-      async () => {
-        const transactions = await getTeamTransactions(teamCode);
-        callback(transactions);
-      }
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-};
+export function validateTransaction(transaction: TransactionInput) {
+  if (!transaction || !Number.isFinite(transaction.amount) || transaction.amount <= 0 || transaction.amount > 99999999.99) throw new Error('Enter an amount greater than zero and no more than 99,999,999.99.');
+  if (typeof transaction.description !== 'string' || !transaction.description.trim() || transaction.description.length > 1000 || typeof transaction.category !== 'string' || !transaction.category.trim() || transaction.category.length > 200) throw new Error('Description and category are required (maximum 1,000 and 200 characters).');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(transaction.date) || Number.isNaN(Date.parse(transaction.date)) || new Date(transaction.date).toISOString().slice(0, 10) !== transaction.date) throw new Error('Choose a valid date.');
+  if (!['income', 'expense'].includes(transaction.type)) throw new Error('Choose income or expense.');
+  if (transaction.notes !== undefined && (typeof transaction.notes !== 'string' || transaction.notes.length > 10000)) throw new Error('Notes must be text, up to 10,000 characters.');
+}

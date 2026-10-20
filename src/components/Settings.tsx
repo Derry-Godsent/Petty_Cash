@@ -1,54 +1,68 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppSettings } from '../types';
 import { Save, Download, Upload, Trash2, Database } from 'lucide-react';
 
 interface SettingsProps {
   settings: AppSettings;
-  onSave: (settings: AppSettings) => void;
+  onSave: (settings: AppSettings) => Promise<void>;
   onExport: () => void;
-  onImport: (content: string) => void;
-  onClearAll: () => void;
-  onGenerateTeamCode: () => void;
+  onImport: (content: string) => Promise<void>;
+  onClearAll: () => Promise<void>;
 }
 
-export default function Settings({ settings, onSave, onExport, onImport, onClearAll, onGenerateTeamCode }: SettingsProps) {
+export default function Settings({ settings, onSave, onExport, onImport, onClearAll }: SettingsProps) {
   const [form, setForm] = useState<AppSettings>(settings);
   const [saved, setSaved] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  const handleSave = () => {
-    onSave(form);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  useEffect(() => { setForm(settings); }, [settings]);
+
+  const handleSave = async () => {
+    setBusy(true); setError(''); setSaved(false); setNotice('');
+    try {
+      await onSave(form);
+      setSaved(true);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Unable to save settings.');
+    } finally { setBusy(false); }
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const content = event.target?.result as string;
-      onImport(content);
+      setBusy(true); setError(''); setNotice('');
+      try { await onImport(content); setNotice('Backup imported successfully.'); }
+      catch (error) { setError(error instanceof Error ? error.message : 'Import failed.'); }
+      finally { setBusy(false); }
     };
+    reader.onerror = () => setError('Could not read this file.');
     reader.readAsText(file);
     e.target.value = '';
   };
 
   return (
-    <div className="space-y-4">
-      {/* Your Details */}
+    <fieldset disabled={busy} onChangeCapture={() => setSaved(false)} className="space-y-4 min-w-0">
+      {error && <p role="alert" className="text-sm text-red-700 bg-red-50 p-3 rounded-xl break-words">{error}</p>}
+      {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
+      {/* Profile */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-5 pt-5 pb-3 border-b border-gray-50">
-          <h3 className="font-semibold text-gray-900 text-sm">Your Details</h3>
+          <h3 className="font-semibold text-gray-900 text-sm">Profile</h3>
         </div>
         <div className="p-5 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Your Name</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Name</label>
             <input
               type="text"
               value={form.senderName}
               onChange={(e) => setForm({ ...form, senderName: e.target.value })}
-              placeholder="Enter your name"
+              placeholder="Name"
               className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-sm transition-all"
             />
           </div>
@@ -97,37 +111,9 @@ export default function Settings({ settings, onSave, onExport, onImport, onClear
               type="email"
               value={form.recipientEmail}
               onChange={(e) => setForm({ ...form, recipientEmail: e.target.value })}
-              placeholder="e.g., boss@company.com"
+              placeholder="name@company.com"
               className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-sm transition-all"
             />
-          </div>
-        </div>
-      </div>
-
-      {/* Team Code */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-5 pt-5 pb-3 border-b border-gray-50">
-          <h3 className="font-semibold text-gray-900 text-sm">Team Access</h3>
-        </div>
-        <div className="p-5 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Team Code</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={form.teamCode}
-                onChange={(e) => setForm({ ...form, teamCode: e.target.value.toUpperCase() })}
-                placeholder="e.g., TEAM-ABC123"
-                className="flex-1 px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-sm font-mono transition-all"
-              />
-              <button
-                type="button"
-                onClick={onGenerateTeamCode}
-                className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors"
-              >
-                Generate
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -142,7 +128,7 @@ export default function Settings({ settings, onSave, onExport, onImport, onClear
         }`}
       >
         <Save className="w-4 h-4" />
-        {saved ? 'Saved' : 'Save Settings'}
+        {busy ? 'Working…' : saved ? 'Saved' : 'Save Settings'}
       </button>
 
       {/* Data Management */}
@@ -183,7 +169,7 @@ export default function Settings({ settings, onSave, onExport, onImport, onClear
           <div className="relative bg-white w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl p-6 shadow-2xl">
             <h3 className="font-bold text-gray-900 text-lg">Delete Everything?</h3>
             <p className="text-sm text-gray-500 mt-2">
-              This will permanently delete all transactions and settings. This cannot be undone.
+              All transactions and settings in this cashbook will be permanently deleted. This cannot be undone.
             </p>
             <div className="flex gap-3 mt-5">
               <button
@@ -193,7 +179,7 @@ export default function Settings({ settings, onSave, onExport, onImport, onClear
                 Cancel
               </button>
               <button
-                onClick={() => { onClearAll(); setShowClearConfirm(false); }}
+                onClick={async () => { setBusy(true); setError(''); try { await onClearAll(); setShowClearConfirm(false); } catch (error) { setError(error instanceof Error ? error.message : 'Could not clear all data.'); setShowClearConfirm(false); } finally { setBusy(false); } }}
                 className="flex-1 py-3 bg-red-600 text-white rounded-xl text-sm font-bold active:bg-red-700"
               >
                 Delete All
@@ -205,8 +191,8 @@ export default function Settings({ settings, onSave, onExport, onImport, onClear
 
       {/* Footer */}
       <div className="text-center py-4">
-        <p className="text-xs text-gray-500">Petty Cash Tracker v2.0</p>
+        <p className="text-xs text-gray-500">Petty Cash</p>
       </div>
-    </div>
+    </fieldset>
   );
 }

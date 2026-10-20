@@ -1,18 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Transaction, AppSettings } from './types';
-import { 
-  getTransactions, 
-  addTransaction, 
-  deleteTransaction, 
-  getSettings, 
-  saveSettings,
-  getTeamTransactions,
-  addTeamTransaction,
-  deleteTeamTransaction,
-  subscribeToTeamTransactions,
-  generateTeamCode
+import {
+  openCashbook, createCashbook, addTransaction, deleteTransaction, saveSettings,
+  clearCashbook, replaceViewerLink, validateTransaction, DEFAULT_SETTINGS,
 } from './lib/database';
-import { getUserId } from './lib/database';
+import { AccessLink, readAccess, rememberAccess, newToken, tokenHash } from './lib/access';
+import ShareLinks from './components/ShareLinks';
+import Notifications from './components/Notifications';
+import { useRef } from 'react';
 import Dashboard from './components/Dashboard';
 import TransactionList from './components/TransactionList';
 import WeeklyReportView from './components/WeeklyReportView';
@@ -22,141 +17,145 @@ import { LayoutDashboard, List, FileText, Settings as SettingsIcon, Plus } from 
 
 type Tab = 'dashboard' | 'transactions' | 'report' | 'settings';
 
-const DEFAULT_SETTINGS: AppSettings = {
-  recipientName: '',
-  recipientPhone: '',
-  recipientEmail: '',
-  senderName: '',
-  companyName: '',
-  teamCode: '',
-};
-
 function App() {
+  const [initial] = useState(() => {
+    try { return { access: readAccess(), error: '' }; }
+    catch (error) { return { access: null, error: error instanceof Error ? error.message : 'Invalid access link.' }; }
+  });
+  const [access, setAccess] = useState<AccessLink | null>(initial.access);
+  const [role, setRole] = useState<'owner' | 'viewer'>('viewer');
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(initial.access));
+  const [loadError, setLoadError] = useState(initial.error);
+  const [syncError, setSyncError] = useState('');
+  const [reload, setReload] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [pastedLink, setPastedLink] = useState('');
+  const creationKeys = useRef<AccessLink | null>(null);
+  const pendingAdd = useRef<{ input: string; id: string } | null>(null);
+  const mutation = useRef(0);
+  const pendingWrites = useRef(0);
+  const isOwner = role === 'owner';
 
-  // Load data on mount
   useEffect(() => {
-    const loadData = async () => {
+    const followLink = () => {
+      if (!new URLSearchParams(window.location.hash.slice(1)).has('access')) return;
       try {
-        const userId = getUserId();
-        const savedSettings = await getSettings(userId);
-        
-        if (savedSettings) {
-          setSettings(savedSettings);
-          
-          // Load transactions based on team code
-          if (savedSettings.teamCode) {
-            const teamTransactions = await getTeamTransactions(savedSettings.teamCode);
-            setTransactions(teamTransactions);
-            
-            // Subscribe to real-time updates
-            const unsubscribe = subscribeToTeamTransactions(savedSettings.teamCode, (updatedTransactions) => {
-              setTransactions(updatedTransactions);
-            });
-            
-            return () => unsubscribe();
-          } else {
-            // Load personal transactions
-            const personalTransactions = await getTransactions(userId);
-            setTransactions(personalTransactions);
-          }
+        const next = readAccess();
+        if (next) { setRole('viewer'); setShowAddModal(false); setLoading(true); setAccess(next); setActiveTab('dashboard'); }
+      } catch (error) { setLoadError(error instanceof Error ? error.message : 'Invalid link.'); }
+    };
+    window.addEventListener('hashchange', followLink);
+    return () => window.removeEventListener('hashchange', followLink);
+  }, []);
+
+  useEffect(() => {
+    if (!access) return;
+    let cancelled = false;
+    let request = 0;
+    let first = true;
+    setLoading(true); setLoadError(''); setShowAddModal(false);
+    const refresh = async () => {
+      if (pendingWrites.current || document.hidden) return;
+      const current = ++request;
+      const version = mutation.current;
+      try {
+        const book = await openCashbook(access.token);
+        const staleViewer = book.role === 'owner' && access.viewerToken && book.viewerKeyHash && await tokenHash(access.viewerToken) !== book.viewerKeyHash;
+        if (cancelled || current !== request || version !== mutation.current) return;
+        if (staleViewer) {
+          const next = { token: access.token };
+          rememberAccess(next); setAccess(next);
         }
+        setRole(book.role);
+        setTransactions(book.transactions);
+        setSettings(previous => JSON.stringify(previous) === JSON.stringify(book.settings) ? previous : book.settings);
+        setSyncError('');
+        setLoading(false); first = false;
       } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
+        if (cancelled || current !== request) return;
+        const message = error instanceof Error ? error.message : 'Could not sync your cashbook.';
+        if (first || (error as { code?: string }).code === '42501') setLoadError(message);
+        else setSyncError('Not synced: ' + message + ' Reconnecting automatically.');
         setLoading(false);
       }
     };
+    void refresh();
+    const visibleRefresh = () => { if (!document.hidden) void refresh(); };
+    window.addEventListener('focus', visibleRefresh);
+    window.addEventListener('online', visibleRefresh);
+    document.addEventListener('visibilitychange', visibleRefresh);
+    const timer = window.setInterval(visibleRefresh, 10000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', visibleRefresh);
+      window.removeEventListener('online', visibleRefresh);
+      document.removeEventListener('visibilitychange', visibleRefresh);
+    };
+  }, [access, reload]);
 
-    loadData();
-  }, []);
+  const ownerToken = () => {
+    if (!access || !isOwner) throw new Error('This cashbook is view-only.');
+    return access.token;
+  };
+  const write = async <T,>(operation: () => Promise<T>): Promise<T> => {
+    mutation.current++; pendingWrites.current++;
+    try { return await operation(); }
+    finally { mutation.current++; pendingWrites.current--; }
+  };
+  const create = async () => {
+    if (creating) return;
+    setCreating(true); setLoadError('');
+    // Reuse these keys on retry if the server saved but the response was lost.
+    creationKeys.current ||= { token: newToken(), viewerToken: newToken() };
+    try {
+      const keys = creationKeys.current;
+      await createCashbook(keys.token, keys.viewerToken!);
+      rememberAccess(keys); setAccess(keys); setActiveTab('settings');
+    } catch (error) { setLoadError(error instanceof Error ? error.message : 'Could not create cashbook.'); }
+    finally { setCreating(false); }
+  };
+  const openPastedLink = () => {
+    try {
+      const url = new URL(pastedLink);
+      if (!new URLSearchParams(url.hash.slice(1)).has('access')) throw new Error('Paste the full private cashbook link.');
+      window.location.hash = url.hash;
+      const next = readAccess();
+      if (next) { setLoadError(''); setRole('viewer'); setShowAddModal(false); setLoading(true); setAccess(next); setActiveTab('dashboard'); }
+    } catch (error) { setLoadError(error instanceof Error ? error.message : 'Invalid private link.'); }
+  };
 
   const handleAddTransaction = async (transaction: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>) => {
-    try {
-      const userId = getUserId();
-      
-      if (settings.teamCode) {
-        // Add to team transactions
-        await addTeamTransaction(settings.teamCode, transaction);
-      } else {
-        // Add to personal transactions
-        await addTransaction({
-          ...transaction,
-          user_id: userId,
-        });
-      }
-      
-      // Refresh transactions
-      if (settings.teamCode) {
-        const updatedTransactions = await getTeamTransactions(settings.teamCode);
-        setTransactions(updatedTransactions);
-      } else {
-        const updatedTransactions = await getTransactions(userId);
-        setTransactions(updatedTransactions);
-      }
-      
-      setShowAddModal(false);
-    } catch (error: any) {
-      console.error('Error adding transaction:', error);
-      const errorMessage = error?.message || 'Unknown error';
-      alert(`Failed to add transaction: ${errorMessage}\n\nPlease check:\n1. Database migration was run\n2. All required columns exist in transactions table\n3. RLS policies are set up`);
-    }
+    await write(async () => {
+      const input = JSON.stringify(transaction);
+      if (pendingAdd.current?.input !== input) pendingAdd.current = { input, id: crypto.randomUUID() };
+      const saved = await addTransaction(ownerToken(), transaction, pendingAdd.current.id);
+      pendingAdd.current = null;
+      setTransactions(previous => [saved, ...previous.filter(row => row.id !== saved.id)]);
+    });
   };
-
   const handleDeleteTransaction = async (id: string) => {
-    try {
-      if (settings.teamCode) {
-        await deleteTeamTransaction(id, settings.teamCode);
-      } else {
-        await deleteTransaction(id);
-      }
-      
-      // Refresh transactions
-      const userId = getUserId();
-      if (settings.teamCode) {
-        const updatedTransactions = await getTeamTransactions(settings.teamCode);
-        setTransactions(updatedTransactions);
-      } else {
-        const updatedTransactions = await getTransactions(userId);
-        setTransactions(updatedTransactions);
-      }
-    } catch (error) {
-      console.error('Error deleting transaction:', error);
-      alert('Failed to delete transaction. Please try again.');
-    }
+    await write(async () => {
+      await deleteTransaction(ownerToken(), id);
+      setTransactions(previous => previous.filter(row => row.id !== id));
+    });
   };
-
   const handleSaveSettings = async (newSettings: AppSettings) => {
-    try {
-      const userId = getUserId();
-      console.log('Attempting to save settings for user:', userId);
-      await saveSettings(userId, newSettings);
-      console.log('Settings saved successfully');
+    await write(async () => {
+      await saveSettings(ownerToken(), newSettings);
       setSettings(newSettings);
-      
-      // Reload transactions if team code changed
-      if (newSettings.teamCode && newSettings.teamCode !== settings.teamCode) {
-        const teamTransactions = await getTeamTransactions(newSettings.teamCode);
-        setTransactions(teamTransactions);
-      } else if (!newSettings.teamCode && settings.teamCode) {
-        // Switched from team to personal
-        const personalTransactions = await getTransactions(userId);
-        setTransactions(personalTransactions);
-      }
-    } catch (error: any) {
-      console.error('Error saving settings:', error);
-      const errorMessage = error?.message || 'Unknown error';
-      alert(`Failed to save settings: ${errorMessage}\n\nPlease check:\n1. Database migration was run\n2. Columns exist in settings table\n3. RLS policies are set up`);
-    }
+    });
   };
-
-  const handleGenerateTeamCode = () => {
-    const newCode = generateTeamCode();
-    setSettings({ ...settings, teamCode: newCode });
+  const handleReplaceViewer = async () => {
+    const token = ownerToken();
+    const viewerToken = newToken();
+    await replaceViewerLink(token, viewerToken);
+    const next = { token, viewerToken };
+    rememberAccess(next); setAccess(next);
   };
 
   const handleExport = () => {
@@ -175,43 +174,34 @@ function App() {
   };
 
   const handleImport = async (content: string) => {
-    try {
-      const data = JSON.parse(content);
-      if (data.settings) {
-        await handleSaveSettings(data.settings);
-      }
-      if (data.transactions && Array.isArray(data.transactions)) {
-        const userId = getUserId();
-        for (const transaction of data.transactions) {
-          await addTransaction({
-            ...transaction,
-            user_id: userId,
-          });
+    ownerToken();
+    const data = JSON.parse(content);
+    if (!data || !Array.isArray(data.transactions)) throw new Error('Choose a valid Petty Cash backup.');
+    data.transactions.forEach(validateTransaction);
+    const importedSettings = data.settings ? Object.fromEntries(
+      Object.keys(DEFAULT_SETTINGS).map(key => [key, typeof data.settings[key] === 'string' ? data.settings[key] : ''])
+    ) as unknown as AppSettings : settings;
+    await write(async () => {
+      await saveSettings(ownerToken(), importedSettings);
+      setSettings(importedSettings);
+      let added = 0;
+      try {
+        for (const row of data.transactions) {
+          const transaction = { date: row.date, description: row.description.trim(), category: row.category.trim(), amount: row.amount, type: row.type, notes: row.notes };
+          const saved = await addTransaction(ownerToken(), transaction, crypto.randomUUID());
+          setTransactions(previous => [saved, ...previous.filter(t => t.id !== saved.id)]);
+          added++;
         }
-        const updatedTransactions = await getTransactions(userId);
-        setTransactions(updatedTransactions);
+      } catch (error) {
+        throw new Error(`Import stopped after ${added} transactions. Already imported rows were kept; do not re-import the full file. ${error instanceof Error ? error.message : ''}`);
       }
-      alert('Data imported successfully!');
-    } catch (error) {
-      console.error('Error importing data:', error);
-      alert('Failed to import data. Please check the file format.');
-    }
+    });
   };
-
   const handleClearAll = async () => {
-    try {
-      // Delete all transactions
-      for (const transaction of transactions) {
-        await deleteTransaction(transaction.id);
-      }
-      // Reset settings
-      await handleSaveSettings(DEFAULT_SETTINGS);
-      setTransactions([]);
-      setSettings(DEFAULT_SETTINGS);
-    } catch (error) {
-      console.error('Error clearing data:', error);
-      alert('Failed to clear data. Please try again.');
-    }
+    await write(async () => {
+      await clearCashbook(ownerToken());
+      setTransactions([]); setSettings(DEFAULT_SETTINGS);
+    });
   };
 
   const currentBalance = useMemo(() => {
@@ -219,6 +209,19 @@ function App() {
       return t.type === 'income' ? balance + t.amount : balance - t.amount;
     }, 0);
   }, [transactions]);
+
+  if (!access) return (
+    <div className="app-shell flex items-center justify-center bg-gray-50 p-5">
+      <div className="max-w-md w-full space-y-5">
+        <h1 className="text-2xl font-bold text-gray-900">Petty Cash</h1>
+        {loadError && <p role="alert" className="text-sm text-red-700 break-words">{loadError}</p>}
+        <button disabled={creating} onClick={create} className="w-full py-4 bg-slate-800 text-white rounded-xl font-semibold">{creating ? 'Creating…' : 'Create cashbook'}</button>
+        <label htmlFor="existing-link" className="block text-sm font-semibold">Existing cashbook</label>
+        <input id="existing-link" type="url" value={pastedLink} onChange={event => setPastedLink(event.target.value)} placeholder="Private access link" className="w-full border border-gray-200 rounded-xl p-3" />
+        <button disabled={!pastedLink.trim() || creating} onClick={openPastedLink} className="w-full py-3 border border-gray-300 rounded-xl font-semibold">Open cashbook</button>
+      </div>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -231,8 +234,18 @@ function App() {
     );
   }
 
+  if (loadError) return (
+    <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
+      <div className="max-w-md space-y-4">
+        <h1 className="text-xl font-bold">Unable to connect</h1>
+        <p role="alert" className="text-sm text-gray-600 break-words">{loadError}</p>
+        <button className="px-5 py-3 bg-slate-800 text-white rounded-xl" onClick={() => setReload(value => value + 1)}>Reconnect</button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="app-shell bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
@@ -242,22 +255,28 @@ function App() {
               <p className="text-[11px] text-gray-500">{settings.companyName}</p>
             )}
           </div>
-          <button
+          {!isOwner && <span className="text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg px-3 py-2">View only</span>}
+          {isOwner && <button
+            aria-label="Add transaction"
             onClick={() => setShowAddModal(true)}
             className="w-10 h-10 bg-slate-800 text-white rounded-xl flex items-center justify-center shadow-md active:scale-95 transition-transform"
           >
             <Plus className="w-5 h-5" />
-          </button>
+          </button>}
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-3 pb-20">
+      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-3 app-content">
+        {syncError && <p role="status" className="text-xs text-amber-800 bg-amber-50 rounded-xl p-3 mb-3">{syncError}</p>}
         {activeTab === 'dashboard' && (
-          <Dashboard transactions={transactions} currentBalance={currentBalance} />
+          <>
+            <Notifications token={access.token} />
+            <Dashboard transactions={transactions} currentBalance={currentBalance} />
+          </>
         )}
         {activeTab === 'transactions' && (
-          <TransactionList transactions={transactions} onDelete={handleDeleteTransaction} />
+          <TransactionList transactions={transactions} onDelete={isOwner ? handleDeleteTransaction : undefined} />
         )}
         {activeTab === 'report' && (
           <WeeklyReportView
@@ -267,15 +286,17 @@ function App() {
             senderName={settings.senderName}
           />
         )}
-        {activeTab === 'settings' && (
+        {activeTab === 'settings' && isOwner && (
+          <div className="space-y-4">
+          <ShareLinks access={access} onReplaceViewer={handleReplaceViewer} />
           <Settings
             settings={settings}
             onSave={handleSaveSettings}
             onExport={handleExport}
             onImport={handleImport}
             onClearAll={handleClearAll}
-            onGenerateTeamCode={handleGenerateTeamCode}
           />
+          </div>
         )}
       </main>
 
@@ -315,7 +336,7 @@ function App() {
             </div>
             <span className="text-[10px] mt-0.5 font-medium">Report</span>
           </button>
-          <button
+          {isOwner && <button
             onClick={() => setActiveTab('settings')}
             className={`flex-1 flex flex-col items-center py-2 transition-all ${
               activeTab === 'settings' ? 'text-slate-800' : 'text-gray-400'
@@ -325,12 +346,12 @@ function App() {
               <SettingsIcon className="w-5 h-5" />
             </div>
             <span className="text-[10px] mt-0.5 font-medium">Settings</span>
-          </button>
+          </button>}
         </div>
       </nav>
 
       {/* Add Transaction Modal */}
-      {showAddModal && (
+      {showAddModal && isOwner && (
         <AddTransaction
           onAdd={handleAddTransaction}
           onClose={() => setShowAddModal(false)}

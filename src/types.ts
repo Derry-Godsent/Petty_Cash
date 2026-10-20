@@ -27,7 +27,6 @@ export interface AppSettings {
   recipientEmail: string;
   senderName: string;
   companyName: string;
-  teamCode: string;
 }
 
 export const EXPENSE_CATEGORIES = [
