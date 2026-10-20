@@ -132,7 +132,9 @@ function App() {
   const handleSaveSettings = async (newSettings: AppSettings) => {
     try {
       const userId = getUserId();
+      console.log('Attempting to save settings for user:', userId);
       await saveSettings(userId, newSettings);
+      console.log('Settings saved successfully');
       setSettings(newSettings);
       
       // Reload transactions if team code changed
@@ -144,9 +146,10 @@ function App() {
         const personalTransactions = await getTransactions(userId);
         setTransactions(personalTransactions);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving settings:', error);
-      alert('Failed to save settings. Please try again.');
+      const errorMessage = error?.message || 'Unknown error';
+      alert(`Failed to save settings: ${errorMessage}\n\nPlease check:\n1. Database migration was run\n2. Columns exist in settings table\n3. RLS policies are set up`);
     }
   };
 
@@ -196,7 +199,6 @@ function App() {
 
   const handleClearAll = async () => {
     try {
-      const userId = getUserId();
       // Delete all transactions
       for (const transaction of transactions) {
         await deleteTransaction(transaction.id);

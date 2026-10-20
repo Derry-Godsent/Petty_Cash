@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { Transaction, TransactionType, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../types';
-import { X, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 interface AddTransactionProps {
   onAdd: (transaction: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>) => void;
