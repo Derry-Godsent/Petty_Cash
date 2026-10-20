@@ -100,9 +100,10 @@ function App() {
       }
       
       setShowAddModal(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding transaction:', error);
-      alert('Failed to add transaction. Please try again.');
+      const errorMessage = error?.message || 'Unknown error';
+      alert(`Failed to add transaction: ${errorMessage}\n\nPlease check:\n1. Database migration was run\n2. All required columns exist in transactions table\n3. RLS policies are set up`);
     }
   };
 
