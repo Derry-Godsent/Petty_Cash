@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { Transaction, TransactionType, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../types';
+import { validateTransaction } from '../lib/database';
 import { Plus } from 'lucide-react';
 
 interface AddTransactionProps {
-  onAdd: (transaction: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>) => void;
+  onAdd: (transaction: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>) => Promise<void>;
   onClose: () => void;
 }
 
@@ -18,25 +19,53 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
   const [showCustomCategory, setShowCustomCategory] = useState(false);
   const [customCategory, setCustomCategory] = useState('');
 
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submitting = useRef(false);
+  const dialog = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialog.current?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !submitting.current) onClose();
+      if (event.key === 'Tab') {
+        const nodes = dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled)');
+        if (!nodes?.length) return;
+        const first = nodes[0], last = nodes[nodes.length - 1];
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog.current)) { event.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', keydown);
+    return () => { document.body.style.overflow = overflow; document.removeEventListener('keydown', keydown); previous?.focus(); };
+  }, [onClose]);
+
   const categories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const finalCategory = showCustomCategory ? customCategory.trim() : category;
-    
-    if (!description || !amount || !finalCategory) return;
-
-    onAdd({
-      date,
-      description,
-      category: finalCategory,
-      amount: parseFloat(amount),
-      type,
-      notes: notes || undefined,
-    });
-
-    onClose();
+    if (submitting.current) return;
+    const transaction = {
+      date, description: description.trim(),
+      category: showCustomCategory ? customCategory.trim() : category,
+      amount: Number(amount), type, notes: notes.trim() || undefined,
+    };
+    setError('');
+    try {
+      validateTransaction(transaction);
+      submitting.current = true;
+      setSaving(true);
+      await onAdd(transaction);
+      onClose();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Unable to save. Check your connection and try again.');
+    } finally {
+      submitting.current = false;
+      setSaving(false);
+    }
   };
 
   const handleAddCustomCategory = () => {
@@ -49,14 +78,14 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[92vh] overflow-y-auto shadow-2xl animate-slide-up">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { if (!submitting.current) onClose(); }} />
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="transaction-title" tabIndex={-1} className="transaction-sheet relative bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl overflow-y-auto shadow-2xl animate-slide-up">
         {/* Header */}
         <div className="sticky top-0 bg-white/95 backdrop-blur-md px-5 pt-5 pb-3 border-b border-gray-100 z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-gray-900">New Transaction</h2>
+            <h2 id="transaction-title" className="text-lg font-bold text-gray-900">New Transaction</h2>
             <button
-              onClick={onClose}
+              onClick={() => { if (!submitting.current) onClose(); }}
               className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-xl transition-colors"
               aria-label="Close"
             >
@@ -66,11 +95,12 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
+          <fieldset disabled={saving} className="space-y-5 min-w-0">
           {/* Type Toggle */}
           <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
             <button
               type="button"
-              onClick={() => { setType('expense'); setCategory(''); }}
+              onClick={() => { setType('expense'); setCategory(''); setShowCustomCategory(false); setCustomCategory(''); }}
               className={`py-3 rounded-lg font-semibold text-sm transition-all ${
                 type === 'expense'
                   ? 'bg-white text-gray-900 shadow-sm'
@@ -81,7 +111,7 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
             </button>
             <button
               type="button"
-              onClick={() => { setType('income'); setCategory(''); }}
+              onClick={() => { setType('income'); setCategory(''); setShowCustomCategory(false); setCustomCategory(''); }}
               className={`py-3 rounded-lg font-semibold text-sm transition-all ${
                 type === 'income'
                   ? 'bg-white text-gray-900 shadow-sm'
@@ -94,28 +124,31 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
 
           {/* Amount */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Amount</label>
+            <label htmlFor="transaction-amount" className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Amount</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-lg">GH₵</span>
               <input
+                id="transaction-amount"
                 type="number"
                 step="0.01"
-                min="0"
+                min="0.01"
+                max="99999999.99"
+                inputMode="decimal"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
                 className="w-full pl-16 pr-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-2xl font-bold text-gray-900 transition-all"
                 required
-                autoFocus
               />
             </div>
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Description</label>
+            <label htmlFor="transaction-description" className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Description</label>
             <input
               type="text"
+              id="transaction-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What was this for?"
@@ -163,8 +196,7 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
                   onChange={(e) => setCustomCategory(e.target.value)}
                   placeholder="Enter custom category"
                   className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-gray-900 transition-all"
-                  autoFocus
-                />
+                  />
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -188,8 +220,9 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
 
           {/* Date */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Date</label>
+            <label htmlFor="transaction-date" className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Date</label>
             <input
+              id="transaction-date"
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
@@ -200,8 +233,9 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
 
           {/* Notes */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Notes</label>
+            <label htmlFor="transaction-notes" className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Notes</label>
             <textarea
+              id="transaction-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Additional details"
@@ -210,23 +244,25 @@ export default function AddTransaction({ onAdd, onClose }: AddTransactionProps) 
             />
           </div>
 
+          {error && <p role="alert" className="text-sm text-red-700 bg-red-50 p-3 rounded-xl">{error}</p>}
           {/* Submit */}
           <button
             type="submit"
-            disabled={!description || !amount || (!showCustomCategory && !category) || (showCustomCategory && !customCategory.trim())}
+            disabled={saving || !description.trim() || !amount || (!showCustomCategory && !category) || (showCustomCategory && !customCategory.trim())}
             className="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-base transition-all shadow-lg active:scale-[0.98] disabled:bg-gray-300 disabled:shadow-none"
           >
-            Add Transaction
+            {saving ? 'Saving…' : 'Add Transaction'}
           </button>
 
           {/* Cancel button */}
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => { if (!submitting.current) onClose(); }}
             className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm transition-colors active:bg-gray-300"
           >
             Cancel
           </button>
+          </fieldset>
         </form>
       </div>
     </div>

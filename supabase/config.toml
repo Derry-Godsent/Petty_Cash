@@ -1,0 +1,3 @@
+[functions.dispatch-push]
+# This scheduled endpoint uses PUSH_DISPATCH_SECRET, never a public anon key.
+verify_jwt = false

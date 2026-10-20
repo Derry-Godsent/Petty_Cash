@@ -82,17 +82,17 @@ export default function WeeklyReportView({ transactions, recipientPhone, recipie
         <div className="relative">
           <p className="text-xs text-slate-300 font-medium uppercase tracking-wider mb-3">Weekly Summary</p>
           <div className="grid grid-cols-3 gap-2">
-            <div className="bg-white/10 rounded-lg p-3">
+            <div className="report-summary-cell bg-white/10 rounded-lg p-2 sm:p-3">
               <p className="text-xs text-slate-300">Received</p>
-              <p className="text-sm font-bold mt-0.5">{formatCurrency(report.totalIncome)}</p>
+              <p className="report-summary-amount font-bold mt-0.5">{formatCurrency(report.totalIncome)}</p>
             </div>
-            <div className="bg-white/10 rounded-lg p-3">
+            <div className="report-summary-cell bg-white/10 rounded-lg p-2 sm:p-3">
               <p className="text-xs text-slate-300">Spent</p>
-              <p className="text-sm font-bold mt-0.5">{formatCurrency(report.totalExpense)}</p>
+              <p className="report-summary-amount font-bold mt-0.5">{formatCurrency(report.totalExpense)}</p>
             </div>
-            <div className="bg-white/10 rounded-lg p-3">
+            <div className="report-summary-cell bg-white/10 rounded-lg p-2 sm:p-3">
               <p className="text-xs text-slate-300">Balance</p>
-              <p className="text-sm font-bold mt-0.5">{formatCurrency(report.balance)}</p>
+              <p className="report-summary-amount font-bold mt-0.5">{formatCurrency(report.balance)}</p>
             </div>
           </div>
           <p className="text-xs text-slate-300 mt-3">

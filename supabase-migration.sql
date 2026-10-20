@@ -1,3 +1,5 @@
+-- LEGACY / INSECURE: Do not run for the current app. See MOBILE_SUPABASE_SETUP.md
+-- and supabase/migrations/202610200001_secure_cashbook.sql instead.
 -- Add team_code column to transactions table
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS team_code TEXT;
 

@@ -6,13 +6,16 @@ import { Trash2, Search, X, Calendar, Tag, FileText } from 'lucide-react';
 
 interface TransactionListProps {
   transactions: Transaction[];
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => Promise<void>;
 }
 
 export default function TransactionList({ transactions, onDelete }: TransactionListProps) {
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const filtered = transactions
     .filter((t) => {
@@ -31,11 +34,15 @@ export default function TransactionList({ transactions, onDelete }: TransactionL
 
   const hasActiveFilters = filterType !== 'all' || searchQuery !== '';
 
-  const handleDelete = (id: string) => {
-    if (confirm('Delete this transaction?')) {
-      onDelete(id);
+  const handleDelete = async (id: string) => {
+    if (!onDelete || deleting || !confirm('Delete this transaction?')) return;
+    setDeleting(true); setDeleteError('');
+    try {
+      await onDelete(id);
       setSelectedTransaction(null);
-    }
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Could not delete this transaction. Check your connection and try again.');
+    } finally { setDeleting(false); }
   };
 
   return (
@@ -100,7 +107,7 @@ export default function TransactionList({ transactions, onDelete }: TransactionL
           filtered.map((t) => (
             <button
               key={t.id}
-              onClick={() => setSelectedTransaction(t)}
+              onClick={() => { setDeleteError(''); setSelectedTransaction(t); }}
               className="w-full bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3 active:bg-gray-50 transition-colors text-left"
             >
               <div className="flex-1 min-w-0">
@@ -135,7 +142,7 @@ export default function TransactionList({ transactions, onDelete }: TransactionL
             className="absolute inset-0 bg-black/50" 
             onClick={() => setSelectedTransaction(null)} 
           />
-          <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl shadow-2xl animate-slide-up max-h-[85vh] overflow-y-auto">
+          <div role="dialog" aria-modal="true" aria-label="Transaction Details" className="transaction-sheet relative bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl shadow-2xl animate-slide-up max-h-[85vh] overflow-y-auto">
             {/* Header */}
             <div className="sticky top-0 bg-white px-5 pt-4 pb-3 border-b border-gray-200 z-10 flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900">Transaction Details</h2>
@@ -217,14 +224,16 @@ export default function TransactionList({ transactions, onDelete }: TransactionL
                 </div>
               </div>
 
+              {deleteError && <p role="alert" className="text-sm text-red-700">{deleteError}</p>}
               {/* Delete Button */}
-              <button
+              {onDelete && <button
+                disabled={deleting}
                 onClick={() => handleDelete(selectedTransaction.id)}
                 className="w-full py-3.5 bg-red-50 hover:bg-red-100 text-red-600 font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors active:bg-red-200"
               >
                 <Trash2 className="w-4 h-4" />
-                Delete Transaction
-              </button>
+                {deleting ? 'Deleting…' : 'Delete Transaction'}
+              </button>}
 
               {/* Close Button */}
               <button
