@@ -67,7 +67,9 @@ export const getSettings = async (userId: string): Promise<AppSettings | null> =
 };
 
 export const saveSettings = async (userId: string, settings: AppSettings): Promise<void> => {
-  const { error } = await supabase
+  console.log('Saving settings for user:', userId, settings);
+  
+  const { data, error } = await supabase
     .from('settings')
     .upsert({
       user_id: userId,
@@ -80,9 +82,15 @@ export const saveSettings = async (userId: string, settings: AppSettings): Promi
       updated_at: new Date().toISOString()
     }, {
       onConflict: 'user_id'
-    });
+    })
+    .select();
 
-  if (error) throw error;
+  if (error) {
+    console.error('Save settings error:', error);
+    throw new Error(`Failed to save settings: ${error.message}`);
+  }
+  
+  console.log('Settings saved successfully:', data);
 };
 
 // Team functions

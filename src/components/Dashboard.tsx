@@ -1,7 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import { formatCurrency } from '../utils/report';
 import { Transaction } from '../types';
-import { Wallet, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Calendar } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
 
 interface DashboardProps {
   transactions: Transaction[];
