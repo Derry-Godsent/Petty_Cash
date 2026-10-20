@@ -24,14 +24,22 @@ export const getTransactions = async (userId: string): Promise<Transaction[]> =>
 };
 
 export const addTransaction = async (transaction: Omit<Transaction, 'id' | 'createdAt'>): Promise<void> => {
-  const { error } = await supabase
+  console.log('Adding transaction:', transaction);
+  
+  const { data, error } = await supabase
     .from('transactions')
     .insert([{
       ...transaction,
       created_at: new Date().toISOString()
-    }]);
+    }])
+    .select();
 
-  if (error) throw error;
+  if (error) {
+    console.error('Add transaction error:', error);
+    throw new Error(`Failed to add transaction: ${error.message}`);
+  }
+  
+  console.log('Transaction added successfully:', data);
 };
 
 export const deleteTransaction = async (id: string): Promise<void> => {
