@@ -52,7 +52,7 @@ test('built app fills the viewport, retains only home-indicator space, and keeps
   }
 });
 
-test('installed iPhone status-bar viewport mismatch fills the screen and recovers after keyboard close', async ({ page }) => {
+test('reported iPhone geometry keeps every tab label visible without double bottom padding', async ({ page }) => {
   await page.addInitScript(() => {
     (window as any).__viewport = { layout: 797, visual: 797 };
     Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
@@ -66,10 +66,18 @@ test('installed iPhone status-bar viewport mismatch fills the screen and recover
   await page.route('**/rest/v1/rpc/pc_open', route => route.fulfill({ json: { id: 'book', role: 'owner', settings: {}, transactions: [] } }));
   await page.goto('/');
   await expect(page.getByRole('navigation')).toBeVisible();
-  await page.addStyleTag({ content: '.viewport-safe-area-probe { padding-top: 47px; padding-bottom: 34px; } .bottom-nav { padding-bottom: 34px; }' });
+  await page.addStyleTag({ content: '.viewport-safe-area-probe { padding-top: 47px; padding-bottom: 34px; }' });
   await page.evaluate(() => window.dispatchEvent(new Event('resize')));
-  await expect.poll(() => page.locator('#root').evaluate(element => element.getBoundingClientRect().bottom)).toBe(844);
-  await expect.poll(() => page.getByRole('navigation').evaluate(element => element.getBoundingClientRect().bottom)).toBe(844);
+  await expect.poll(() => page.locator('#root').evaluate(element => element.getBoundingClientRect().bottom)).toBe(797);
+  await expect.poll(() => page.getByRole('navigation').evaluate(element => element.getBoundingClientRect().bottom)).toBe(797);
+  expect(await page.getByRole('navigation').evaluate(element => getComputedStyle(element).paddingBottom)).toBe('0px');
+  for (const tab of ['Home', 'History', 'Report', 'Settings']) {
+    const label = page.getByRole('navigation').getByText(tab, { exact: true });
+    const bounds = await label.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(797);
+    await expect(label).toBeInViewport({ ratio: 1 });
+  }
   await page.evaluate(() => {
     (window as any).__viewport.visual = 480;
     window.visualViewport!.dispatchEvent(new Event('resize'));
@@ -79,11 +87,11 @@ test('installed iPhone status-bar viewport mismatch fills the screen and recover
     (window as any).__viewport.visual = 797;
     window.visualViewport!.dispatchEvent(new Event('resize'));
   });
-  await expect.poll(() => page.getByRole('navigation').evaluate(element => element.getBoundingClientRect().bottom)).toBe(844);
+  await expect.poll(() => page.getByRole('navigation').evaluate(element => element.getBoundingClientRect().bottom)).toBe(797);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByText('Display diagnostics', { exact: true }).click();
   const diagnostics = await page.locator('details pre').innerText();
-  expect(diagnostics).toContain('viewport-4');
+  expect(diagnostics).toContain('viewport-5');
   expect(diagnostics).toContain('standalone');
   expect(diagnostics).not.toContain('a'.repeat(64));
   expect(diagnostics).not.toContain('#access');

@@ -67,18 +67,19 @@ See [PUSH_NOTIFICATIONS_SETUP.md](./PUSH_NOTIFICATIONS_SETUP.md) for iPhone/Andr
 
 ### Installed iPhone layout verification
 
-The current layout revision is **viewport-4** (Settings → App information).
-This revision measures the visible viewport and corrects a narrowly identified
-standalone iOS status-bar-height mismatch, rather than stretching every device to
-`screen.height`. Android, ordinary browser windows, split-screen widths and
-keyboard-reduced viewports are not expanded to full-screen dimensions. New
-installations use the opaque/default iOS status-bar mode; existing installations
-may retain their original status-bar mode.
+The current layout revision is **viewport-5** (Settings → App information).
+This revision never extends app controls past the drawable visual/layout viewport.
+For older installed iOS shells reporting an already-excluded bottom strip plus
+safe-area padding, it removes the duplicate padding rather than stretching to
+`screen.height`. Normal browser, Android, split-screen and opaque-status-bar
+layouts retain their system safe-area padding.
 
 After deploying, use **Check for updates** in App information to check the service
 worker and reload without clearing private-link storage or push subscriptions.
 If a physical phone still has a gap, expand **Display diagnostics** and capture
 those values with the screen. Diagnostics contain viewport/screen/inset geometry
 and the layout revision only, not private access links or financial data.
-Chromium tests now reproduce the 47px standalone viewport mismatch and keyboard
-recovery, but do not replace testing on an actual iPhone/WebKit installation.
+Regression tests reproduce the reported 390×797 drawable viewport on a 390×844
+screen with 47px/34px insets. They assert every tab label is inside the drawable
+area, rather than accepting an oversized navigation bottom of 844px. Actual
+iPhone verification is still necessary.

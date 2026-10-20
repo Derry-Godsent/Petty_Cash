@@ -294,11 +294,11 @@ test('bottom navigation stays inside the app viewport while only content scrolls
   }
 });
 
-test('viewport correction is restricted to an installed iPhone status-bar gap', async ({ page }) => {
+test('viewport height never exceeds the drawable area and reserved insets are not doubled', async ({ page }) => {
   await page.goto('/');
   const heights = await page.evaluate(async () => {
     const path = '/src/lib/viewport.ts';
-    const { appViewportHeight } = await import(path);
+    const { appViewportHeight, appBottomInset } = await import(path);
     const base = { layoutHeight: 797, visualHeight: 797, visualOffsetTop: 0, screenHeight: 844, screenWidth: 390, width: 390, safeTop: 47, standaloneIOS: true };
     return [
       appViewportHeight(base),
@@ -308,7 +308,13 @@ test('viewport correction is restricted to an installed iPhone status-bar gap', 
       appViewportHeight({ ...base, visualHeight: 480 }), // Keyboard covers bottom
       appViewportHeight({ ...base, layoutHeight: 480, visualHeight: 480 }), // OS also resizes layout for keyboard
       appViewportHeight({ ...base, screenHeight: 1024 }), // Unrelated screen/viewport mismatch
+      appBottomInset(base, 34),
+      appBottomInset({ ...base, standaloneIOS: false }, 34),
+      appBottomInset({ ...base, width: 320 }, 34),
+      appBottomInset({ ...base, safeTop: 0 }, 34),
+      appBottomInset({ ...base, visualHeight: 480 }, 34),
+      appBottomInset({ ...base, layoutHeight: 844, visualHeight: 844 }, 34),
     ];
   });
-  expect(heights).toEqual([844, 797, 797, 797, 480, 480, 797]);
+  expect(heights).toEqual([797, 797, 797, 797, 480, 480, 797, 0, 34, 34, 34, 34, 34]);
 });

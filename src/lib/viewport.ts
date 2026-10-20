@@ -1,6 +1,6 @@
-/** The layout viewport and the installed iOS viewport can disagree by the status
- * bar height. Correct only that identifiable case, never stretch all phones to
- * screen.height (which would put Android controls under system navigation). */
+/** Size controls to the drawable viewport, never to the physical screen.
+ * Some older iOS Home Screen shells exclude a bottom strip while still reporting
+ * a bottom safe-area inset. Account for that strip in padding, not app height. */
 export interface ViewportMeasurements {
   layoutHeight: number;
   visualHeight: number;
@@ -12,17 +12,22 @@ export interface ViewportMeasurements {
   standaloneIOS: boolean;
 }
 export function appViewportHeight(m: ViewportMeasurements): number {
-  const gap = m.screenHeight - m.layoutHeight;
-  const overlayStatusBarGap = m.standaloneIOS && Math.abs(m.width - m.screenWidth) <= 1
-    && gap > 1 && gap <= m.safeTop + 1;
-  // A substantial reduction is an on-screen keyboard, not the status-bar gap.
-  const keyboard = m.visualHeight > 0 && m.layoutHeight - m.visualHeight > 120;
-  if (overlayStatusBarGap && !keyboard) return m.screenHeight;
   const visibleBottom = m.visualHeight + m.visualOffsetTop;
   return Math.max(1, Math.min(m.layoutHeight, visibleBottom || m.layoutHeight));
 }
 
-export const LAYOUT_VERSION = 'viewport-4';
+export function appBottomInset(m: ViewportMeasurements, safeBottom: number): number {
+  const excluded = m.screenHeight - m.layoutHeight;
+  const keyboard = m.visualHeight > 0 && m.layoutHeight - m.visualHeight > 120;
+  const alreadyReserved = m.standaloneIOS && !keyboard
+    && Math.abs(m.width - m.screenWidth) <= 1
+    && excluded > 1 && excluded <= m.safeTop + 1;
+  // Keep the bar inside the viewport. Never add safe-area space twice when the
+  // legacy installed shell already leaves at least that much space below it.
+  return Math.max(0, safeBottom - (alreadyReserved ? excluded : 0));
+}
+
+export const LAYOUT_VERSION = 'viewport-5';
 export function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
 }
@@ -47,15 +52,18 @@ export function installViewportSizing(): () => void {
     const shortSide = Math.min(screen.width, screen.height);
     const longSide = Math.max(screen.width, screen.height);
     const landscape = window.innerWidth > shortSide + 1;
-    const height = appViewportHeight({
+    const measurements: ViewportMeasurements = {
       layoutHeight: window.innerHeight, visualHeight: visual?.height || window.innerHeight,
       visualOffsetTop: visual?.offsetTop || 0,
       screenHeight: landscape ? shortSide : longSide,
       screenWidth: landscape ? longSide : shortSide,
       width: window.innerWidth, safeTop,
       standaloneIOS: isIOS() && isStandalone() && window.self === window.top,
-    });
+    };
+    const height = appViewportHeight(measurements);
+    const bottomInset = appBottomInset(measurements, safeBottom);
     root.style.setProperty('--app-viewport-height', `${Math.round(height * 100) / 100}px`);
+    root.style.setProperty('--app-bottom-inset', `${bottomInset}px`);
     root.style.setProperty('--app-safe-top', `${safeTop}px`);
     root.style.setProperty('--app-safe-bottom', `${safeBottom}px`);
     root.dataset.layoutVersion = LAYOUT_VERSION;
@@ -81,6 +89,7 @@ export function installViewportSizing(): () => void {
     window.visualViewport?.removeEventListener('resize', schedule);
     window.visualViewport?.removeEventListener('scroll', schedule);
     root.style.removeProperty('--app-viewport-height');
+    root.style.removeProperty('--app-bottom-inset');
   };
 }
 
@@ -97,6 +106,7 @@ export function layoutDiagnostics() {
     safeArea: `${css.getPropertyValue('--app-safe-top').trim()} / ${css.getPropertyValue('--app-safe-bottom').trim()}`,
     appBottom: Math.round(root?.getBoundingClientRect().bottom || 0),
     navigationBottom: Math.round(nav?.getBoundingClientRect().bottom || 0),
+    effectiveBottomInset: css.getPropertyValue('--app-bottom-inset').trim(),
     navigationPadding: nav ? getComputedStyle(nav).paddingBottom : '',
   };
 }
