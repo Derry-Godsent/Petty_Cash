@@ -11,6 +11,19 @@ export const getUserId = (): string => {
   return userId;
 };
 
+// Helper function to map database row to Transaction type
+const mapDbRowToTransaction = (row: any): Transaction => ({
+  id: row.id,
+  user_id: row.user_id || '',
+  date: row.date,
+  description: row.description,
+  category: row.category,
+  amount: parseFloat(row.amount),
+  type: row.type,
+  notes: row.notes || undefined,
+  createdAt: row.created_at,
+});
+
 // Transactions
 export const getTransactions = async (userId: string): Promise<Transaction[]> => {
   const { data, error } = await supabase
@@ -20,17 +33,28 @@ export const getTransactions = async (userId: string): Promise<Transaction[]> =>
     .order('date', { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return (data || []).map(mapDbRowToTransaction);
 };
 
 export const addTransaction = async (transaction: Omit<Transaction, 'id' | 'createdAt'>): Promise<void> => {
   console.log('Adding transaction:', transaction);
   
+  const id = crypto.randomUUID();
+  const created_at = new Date().toISOString();
+  
   const { data, error } = await supabase
     .from('transactions')
     .insert([{
-      ...transaction,
-      created_at: new Date().toISOString()
+      id,
+      user_id: transaction.user_id,
+      date: transaction.date,
+      description: transaction.description,
+      category: transaction.category,
+      amount: transaction.amount,
+      type: transaction.type,
+      notes: transaction.notes || null,
+      team_code: null,
+      created_at
     }])
     .select();
 
@@ -110,19 +134,32 @@ export const getTeamTransactions = async (teamCode: string): Promise<Transaction
     .order('date', { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return (data || []).map(mapDbRowToTransaction);
 };
 
 export const addTeamTransaction = async (teamCode: string, transaction: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>): Promise<void> => {
+  const id = crypto.randomUUID();
+  const created_at = new Date().toISOString();
+  
   const { error } = await supabase
     .from('transactions')
     .insert([{
-      ...transaction,
+      id,
+      user_id: null,
+      date: transaction.date,
+      description: transaction.description,
+      category: transaction.category,
+      amount: transaction.amount,
+      type: transaction.type,
+      notes: transaction.notes || null,
       team_code: teamCode,
-      created_at: new Date().toISOString()
+      created_at
     }]);
 
-  if (error) throw error;
+  if (error) {
+    console.error('Add team transaction error:', error);
+    throw new Error(`Failed to add team transaction: ${error.message}`);
+  }
 };
 
 export const deleteTeamTransaction = async (id: string, teamCode: string): Promise<void> => {
