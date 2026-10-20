@@ -1,98 +1,70 @@
-import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO } from 'date-fns';
 import { Transaction, WeeklyReport } from '../types';
+import { startOfWeek, endOfWeek, isWithinInterval, parseISO, format } from 'date-fns';
 
-export const CURRENCY = 'GH₵';
-
-export function generateWeeklyReport(transactions: Transaction[], weekOffset: number = 0): WeeklyReport {
+export const generateWeeklyReport = (transactions: Transaction[], weekOffset: number = 0): WeeklyReport => {
   const today = new Date();
   const targetDate = new Date(today);
   targetDate.setDate(today.getDate() + weekOffset * 7);
 
-  const startDate = startOfWeek(targetDate, { weekStartsOn: 1 });
-  const endDate = endOfWeek(targetDate, { weekStartsOn: 1 });
+  const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(targetDate, { weekStartsOn: 1 });
 
-  const weekTransactions = transactions.filter((t) => {
-    const tDate = parseISO(t.date);
-    return isWithinInterval(tDate, { start: startDate, end: endDate });
+  const weekTransactions = transactions.filter(t => {
+    const transactionDate = parseISO(t.date);
+    return isWithinInterval(transactionDate, { start: weekStart, end: weekEnd });
   });
 
   const totalIncome = weekTransactions
-    .filter((t) => t.type === 'income')
+    .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + t.amount, 0);
 
   const totalExpense = weekTransactions
-    .filter((t) => t.type === 'expense')
+    .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
 
   return {
-    startDate: format(startDate, 'yyyy-MM-dd'),
-    endDate: format(endDate, 'yyyy-MM-dd'),
-    transactions: weekTransactions.sort((a, b) => a.date.localeCompare(b.date)),
+    startDate: format(weekStart, 'yyyy-MM-dd'),
+    endDate: format(weekEnd, 'yyyy-MM-dd'),
+    transactions: weekTransactions,
     totalIncome,
     totalExpense,
-    balance: totalIncome - totalExpense,
+    balance: totalIncome - totalExpense
   };
-}
+};
 
-export function formatCurrency(amount: number): string {
-  return `${CURRENCY}${amount.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+export const formatCurrency = (amount: number): string => {
+  return `GH₵${amount.toFixed(2)}`;
+};
 
+export const formatWhatsAppMessage = (report: WeeklyReport, recipientName: string, senderName: string): string => {
+  const startDate = format(parseISO(report.startDate), 'MMM dd');
+  const endDate = format(parseISO(report.endDate), 'MMM dd, yyyy');
 
-
-export function formatWhatsAppMessage(
-  report: WeeklyReport,
-  recipientName: string,
-  senderName: string
-): string {
-  const dateRange = `${format(parseISO(report.startDate), 'MMM dd')} - ${format(parseISO(report.endDate), 'MMM dd, yyyy')}`;
-
-  let message = `PETTY CASH WEEKLY REPORT\n`;
-  message += `Period: ${dateRange}\n`;
+  let message = `*Petty Cash Report*\n`;
+  message += `Period: ${startDate} - ${endDate}\n`;
   if (senderName) message += `From: ${senderName}\n`;
   if (recipientName) message += `To: ${recipientName}\n`;
   message += `\n`;
-  message += `SUMMARY\n`;
-  message += `━━━━━━━━━━━━━━━━━━\n`;
-  message += `Received: ${formatCurrency(report.totalIncome)}\n`;
-  message += `Spent: ${formatCurrency(report.totalExpense)}\n`;
-  message += `Cash Balance: ${formatCurrency(report.balance)}\n`;
-  message += `━━━━━━━━━━━━━━━━━━\n\n`;
+  message += `*Summary:*\n`;
+  message += `Income: ${formatCurrency(report.totalIncome)}\n`;
+  message += `Expense: ${formatCurrency(report.totalExpense)}\n`;
+  message += `Balance: ${formatCurrency(report.balance)}\n\n`;
 
   if (report.transactions.length > 0) {
-    const grouped: Record<string, typeof report.transactions> = {};
-    report.transactions.forEach((t) => {
-      if (!grouped[t.date]) grouped[t.date] = [];
-      grouped[t.date].push(t);
+    message += `*Transactions:*\n`;
+    report.transactions.forEach(t => {
+      const date = format(parseISO(t.date), 'MMM dd');
+      const sign = t.type === 'income' ? '+' : '-';
+      message += `${date}: ${t.description} (${t.category}) ${sign}${formatCurrency(t.amount)}\n`;
+      if (t.notes) message += `  Note: ${t.notes}\n`;
     });
-
-    message += `TRANSACTIONS\n`;
-    message += `━━━━━━━━━━━━━━━━━━\n`;
-
-    Object.keys(grouped)
-      .sort()
-      .forEach((dateKey) => {
-        message += `\n${format(parseISO(dateKey), 'EEE, MMM dd')}\n`;
-        grouped[dateKey].forEach((t) => {
-          const symbol = t.type === 'income' ? '[+]' : '[-]';
-          message += `${symbol} ${t.description}\n`;
-          message += `   ${formatCurrency(t.amount)} | ${t.category}\n`;
-          if (t.notes) message += `   Note: ${t.notes}\n`;
-        });
-      });
-  } else {
-    message += `No transactions this week.\n`;
   }
 
-  message += `\n━━━━━━━━━━━━━━━━━━\n`;
-  message += `\nGenerated ${format(new Date(), 'MMM dd, yyyy h:mm a')}`;
-
   return message;
-}
+};
 
-export function openWhatsApp(phoneNumber: string, message: string): void {
-  const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
+export const openWhatsApp = (phoneNumber: string, message: string): void => {
   const encodedMessage = encodeURIComponent(message);
-  const url = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+  const url = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
   window.open(url, '_blank');
-}
+};

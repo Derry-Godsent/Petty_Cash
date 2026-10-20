@@ -1,113 +1,61 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase } from './supabase';
 import { Transaction, AppSettings } from '../types';
 
-function getSupabase() {
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error('Supabase is not configured.');
+// Generate unique user ID
+export const getUserId = (): string => {
+  let userId = localStorage.getItem('petty_cash_user_id');
+  if (!userId) {
+    userId = 'user_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('petty_cash_user_id', userId);
   }
-  return supabase;
-}
+  return userId;
+};
 
-// Map Transaction (camelCase) to DB row (snake_case)
-function toDbRow(t: Transaction) {
-  return {
-    id: t.id,
-    user_id: t.user_id,
-    date: t.date,
-    description: t.description,
-    category: t.category,
-    amount: t.amount,
-    type: t.type,
-    notes: t.notes || null,
-    created_at: t.createdAt,
-  };
-}
-
-// Map DB row (snake_case) to Transaction (camelCase)
-function fromDbRow(row: any): Transaction {
-  return {
-    id: row.id,
-    user_id: row.user_id,
-    date: row.date,
-    description: row.description,
-    category: row.category,
-    amount: parseFloat(row.amount),
-    type: row.type,
-    notes: row.notes || undefined,
-    createdAt: row.created_at,
-  };
-}
-
-export async function getAllTransactions(userId: string): Promise<Transaction[]> {
-  const db = getSupabase();
-  const { data, error } = await db
+// Transactions
+export const getTransactions = async (userId: string): Promise<Transaction[]> => {
+  const { data, error } = await supabase
     .from('transactions')
     .select('*')
     .eq('user_id', userId)
     .order('date', { ascending: false });
 
-  if (error) {
-    console.error('Error fetching transactions:', error);
-    throw error;
-  }
-  
-  return (data || []).map(fromDbRow);
-}
+  if (error) throw error;
+  return data || [];
+};
 
-export async function addTransaction(transaction: Transaction): Promise<void> {
-  const db = getSupabase();
-  const { error } = await db
+export const addTransaction = async (transaction: Omit<Transaction, 'id' | 'createdAt'>): Promise<void> => {
+  const { error } = await supabase
     .from('transactions')
-    .insert([toDbRow(transaction)]);
+    .insert([{
+      ...transaction,
+      created_at: new Date().toISOString()
+    }]);
 
-  if (error) {
-    console.error('Error adding transaction:', error);
-    throw error;
-  }
-}
+  if (error) throw error;
+};
 
-export async function deleteTransaction(id: string, userId: string): Promise<void> {
-  const db = getSupabase();
-  const { error } = await db
+export const deleteTransaction = async (id: string): Promise<void> => {
+  const { error } = await supabase
     .from('transactions')
     .delete()
-    .eq('id', id)
-    .eq('user_id', userId);
+    .eq('id', id);
 
-  if (error) {
-    console.error('Error deleting transaction:', error);
-    throw error;
-  }
-}
+  if (error) throw error;
+};
 
-export async function clearAllTransactions(userId: string): Promise<void> {
-  const db = getSupabase();
-  const { error } = await db
-    .from('transactions')
-    .delete()
-    .eq('user_id', userId);
-
-  if (error) {
-    console.error('Error clearing transactions:', error);
-    throw error;
-  }
-}
-
-export async function getSettings(userId: string): Promise<AppSettings | null> {
-  const db = getSupabase();
-  const { data, error } = await db
+// Settings
+export const getSettings = async (userId: string): Promise<AppSettings | null> => {
+  const { data, error } = await supabase
     .from('settings')
     .select('*')
     .eq('user_id', userId)
-    .maybeSingle();
+    .single();
 
   if (error) {
-    console.error('Error fetching settings:', error);
-    return null;
+    if (error.code === 'PGRST116') return null; // No rows
+    throw error;
   }
-  
-  if (!data) return null;
-  
+
   return {
     recipientName: data.recipient_name || '',
     recipientPhone: data.recipient_phone || '',
@@ -116,11 +64,10 @@ export async function getSettings(userId: string): Promise<AppSettings | null> {
     companyName: data.company_name || '',
     teamCode: data.team_code || '',
   };
-}
+};
 
-export async function saveSettings(userId: string, settings: AppSettings): Promise<void> {
-  const db = getSupabase();
-  const { error } = await db
+export const saveSettings = async (userId: string, settings: AppSettings): Promise<void> => {
+  const { error } = await supabase
     .from('settings')
     .upsert({
       user_id: userId,
@@ -130,140 +77,55 @@ export async function saveSettings(userId: string, settings: AppSettings): Promi
       sender_name: settings.senderName,
       company_name: settings.companyName,
       team_code: settings.teamCode,
-      updated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     }, {
       onConflict: 'user_id'
     });
 
-  if (error) {
-    console.error('Error saving settings:', error);
-    throw error;
-  }
-}
+  if (error) throw error;
+};
 
-export async function exportAllData(userId: string): Promise<string> {
-  const transactions = await getAllTransactions(userId);
-  const settings = await getSettings(userId);
-  
-  const exportData = {
-    version: '2.0',
-    exportDate: new Date().toISOString(),
-    transactions,
-    settings,
-  };
-
-  return JSON.stringify(exportData, null, 2);
-}
-
-export async function importAllData(userId: string, jsonString: string): Promise<void> {
-  const data = JSON.parse(jsonString);
-  
-  await clearAllTransactions(userId);
-  
-  if (data.transactions && Array.isArray(data.transactions)) {
-    const db = getSupabase();
-    const transactionsToInsert = data.transactions.map((t: any) => ({
-      id: t.id,
-      user_id: userId,
-      date: t.date,
-      description: t.description,
-      category: t.category,
-      amount: t.amount,
-      type: t.type,
-      notes: t.notes || null,
-      created_at: t.createdAt || t.created_at,
-    }));
-    
-    const { error } = await db
-      .from('transactions')
-      .insert(transactionsToInsert);
-    
-    if (error) {
-      console.error('Error importing transactions:', error);
-      throw error;
-    }
-  }
-
-  if (data.settings) {
-    await saveSettings(userId, data.settings);
-  }
-}
-
-// Team-based functions
-export async function getTeamTransactions(teamCode: string): Promise<Transaction[]> {
-  if (!teamCode) return [];
-  const db = getSupabase();
-  const { data, error } = await db
+// Team functions
+export const getTeamTransactions = async (teamCode: string): Promise<Transaction[]> => {
+  const { data, error } = await supabase
     .from('transactions')
     .select('*')
     .eq('team_code', teamCode)
     .order('date', { ascending: false });
 
-  if (error) {
-    console.error('Error fetching team transactions:', error);
-    throw error;
-  }
-  
-  return (data || []).map(fromDbRow);
-}
+  if (error) throw error;
+  return data || [];
+};
 
-export async function addTeamTransaction(teamCode: string, transaction: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>): Promise<void> {
-  const db = getSupabase();
-  const newTransaction = {
-    id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2),
-    team_code: teamCode,
-    date: transaction.date,
-    description: transaction.description,
-    category: transaction.category,
-    amount: transaction.amount,
-    type: transaction.type,
-    notes: transaction.notes || null,
-    created_at: new Date().toISOString(),
-  };
-  
-  const { error } = await db
+export const addTeamTransaction = async (teamCode: string, transaction: Omit<Transaction, 'id' | 'createdAt' | 'user_id'>): Promise<void> => {
+  const { error } = await supabase
     .from('transactions')
-    .insert([newTransaction]);
+    .insert([{
+      ...transaction,
+      team_code: teamCode,
+      created_at: new Date().toISOString()
+    }]);
 
-  if (error) {
-    console.error('Error adding team transaction:', error);
-    throw error;
-  }
-}
+  if (error) throw error;
+};
 
-export async function deleteTeamTransaction(id: string, teamCode: string): Promise<void> {
-  const db = getSupabase();
-  const { error } = await db
+export const deleteTeamTransaction = async (id: string, teamCode: string): Promise<void> => {
+  const { error } = await supabase
     .from('transactions')
     .delete()
     .eq('id', id)
     .eq('team_code', teamCode);
 
-  if (error) {
-    console.error('Error deleting team transaction:', error);
-    throw error;
-  }
-}
+  if (error) throw error;
+};
 
-export async function clearTeamTransactions(teamCode: string): Promise<void> {
-  const db = getSupabase();
-  const { error } = await db
-    .from('transactions')
-    .delete()
-    .eq('team_code', teamCode);
-
-  if (error) {
-    console.error('Error clearing team transactions:', error);
-    throw error;
-  }
-}
+export const generateTeamCode = (): string => {
+  return 'TEAM-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+};
 
 // Real-time subscription
-export function subscribeToTeamTransactions(teamCode: string, callback: (transactions: Transaction[]) => void) {
-  if (!teamCode) return () => {};
-  
-  const db = getSupabase();
-  const channel = db
+export const subscribeToTeamTransactions = (teamCode: string, callback: (transactions: Transaction[]) => void) => {
+  const channel = supabase
     .channel(`team:${teamCode}`)
     .on('postgres_changes', 
       { event: '*', schema: 'public', table: 'transactions', filter: `team_code=eq.${teamCode}` },
@@ -275,11 +137,6 @@ export function subscribeToTeamTransactions(teamCode: string, callback: (transac
     .subscribe();
 
   return () => {
-    db.removeChannel(channel);
+    supabase.removeChannel(channel);
   };
-}
-
-// Generate team code
-export function generateTeamCode(): string {
-  return 'TEAM-' + Math.random().toString(36).substr(2, 8).toUpperCase();
-}
+};

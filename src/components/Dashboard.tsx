@@ -1,6 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import { formatCurrency } from '../utils/report';
 import { Transaction } from '../types';
+import { Wallet, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Calendar } from 'lucide-react';
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -46,22 +47,36 @@ export default function Dashboard({ transactions, currentBalance }: DashboardPro
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-10 translate-x-10" />
         <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-8 -translate-x-8" />
         <div className="relative">
-          <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">Cash Balance</p>
+          <div className="flex items-center gap-2 mb-1">
+            <Wallet className="w-4 h-4 text-slate-300" />
+            <span className="text-slate-300 text-xs font-medium uppercase tracking-wider">Cash Balance</span>
+          </div>
           <div className="text-3xl font-bold tracking-tight mt-1">{formatCurrency(currentBalance)}</div>
-          <p className="text-slate-400 text-xs mt-3">
-            {format(startOfWeekDate, 'MMM dd')} - {format(endOfWeekDate, 'MMM dd')}
-          </p>
+          <div className="flex items-center gap-1.5 mt-3 text-slate-400 text-xs">
+            <Calendar className="w-3 h-3" />
+            <span>This week: {format(startOfWeekDate, 'MMM dd')} - {format(endOfWeekDate, 'MMM dd')}</span>
+          </div>
         </div>
       </div>
 
       {/* Week Stats */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-xl bg-green-50 flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-green-600" />
+            </div>
+          </div>
           <p className="text-xs text-gray-500 font-medium">Week Income</p>
           <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(weekIncome)}</p>
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center">
+              <TrendingDown className="w-4 h-4 text-red-500" />
+            </div>
+          </div>
           <p className="text-xs text-gray-500 font-medium">Week Spent</p>
           <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(weekExpense)}</p>
         </div>
@@ -91,7 +106,6 @@ export default function Dashboard({ transactions, currentBalance }: DashboardPro
           {recentTransactions.length === 0 ? (
             <div className="px-5 pb-8 pt-2 text-center">
               <p className="text-sm text-gray-500 font-medium">No transactions yet</p>
-              <p className="text-xs text-gray-400 mt-1">Tap the + button to add your first entry</p>
             </div>
           ) : (
             recentTransactions.map((t) => (

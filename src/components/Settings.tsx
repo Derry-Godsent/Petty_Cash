@@ -90,12 +90,9 @@ export default function Settings({ settings, onSave, onExport, onImport, onClear
               placeholder="e.g., 233241234567"
               className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-sm transition-all"
             />
-            <p className="text-xs text-gray-500 mt-1.5">
-              Include country code without + (e.g., 233 for Ghana)
-            </p>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Email (for notifications)</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Email</label>
             <input
               type="email"
               value={form.recipientEmail}
@@ -103,9 +100,6 @@ export default function Settings({ settings, onSave, onExport, onImport, onClear
               placeholder="e.g., boss@company.com"
               className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none text-sm transition-all"
             />
-            <p className="text-xs text-gray-500 mt-1.5">
-              Recipient will receive email notifications when you add transactions
-            </p>
           </div>
         </div>
       </div>
@@ -114,9 +108,6 @@ export default function Settings({ settings, onSave, onExport, onImport, onClear
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-5 pt-5 pb-3 border-b border-gray-50">
           <h3 className="font-semibold text-gray-900 text-sm">Team Access</h3>
-          <p className="text-xs text-gray-500 mt-1">
-            Share this code with your boss so they can see the same data in real-time
-          </p>
         </div>
         <div className="p-5 space-y-4">
           <div>
@@ -137,23 +128,6 @@ export default function Settings({ settings, onSave, onExport, onImport, onClear
                 Generate
               </button>
             </div>
-            {form.teamCode && (
-              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-xs text-green-800 font-medium">
-                  ✓ Team code active. Share "{form.teamCode}" with your boss.
-                </p>
-                <p className="text-xs text-green-700 mt-1">
-                  They can enter this code in their app to see the same data.
-                </p>
-              </div>
-            )}
-            {!form.teamCode && (
-              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-xs text-amber-800">
-                  ⚠ No team code set. Click "Generate" to create one, or enter an existing code to join a team.
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -178,9 +152,6 @@ export default function Settings({ settings, onSave, onExport, onImport, onClear
             <Database className="w-4 h-4 text-gray-600" />
             <h3 className="font-semibold text-gray-900 text-sm">Data Storage</h3>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Data is stored locally in your browser. Export regularly to back up your records.
-          </p>
         </div>
         <div className="p-5 space-y-2.5">
           <button
@@ -235,7 +206,6 @@ export default function Settings({ settings, onSave, onExport, onImport, onClear
       {/* Footer */}
       <div className="text-center py-4">
         <p className="text-xs text-gray-500">Petty Cash Tracker v2.0</p>
-        <p className="text-xs text-gray-400 mt-0.5">Data stored locally on your device</p>
       </div>
     </div>
   );

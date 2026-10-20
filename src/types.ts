@@ -30,7 +30,6 @@ export interface AppSettings {
   teamCode: string;
 }
 
-// Categories tailored for laundry, cleaning, fumigation, and marketing operations
 export const EXPENSE_CATEGORIES = [
   'Transport / Fuel',
   'Marketing Materials',
