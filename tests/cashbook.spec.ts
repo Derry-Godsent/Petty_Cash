@@ -293,3 +293,22 @@ test('bottom navigation stays inside the app viewport while only content scrolls
     }
   }
 });
+
+test('viewport correction is restricted to an installed iPhone status-bar gap', async ({ page }) => {
+  await page.goto('/');
+  const heights = await page.evaluate(async () => {
+    const path = '/src/lib/viewport.ts';
+    const { appViewportHeight } = await import(path);
+    const base = { layoutHeight: 797, visualHeight: 797, visualOffsetTop: 0, screenHeight: 844, screenWidth: 390, width: 390, safeTop: 47, standaloneIOS: true };
+    return [
+      appViewportHeight(base),
+      appViewportHeight({ ...base, standaloneIOS: false }), // Android/browser: no screen-height stretching
+      appViewportHeight({ ...base, width: 320 }), // Split-screen/embedded width: don't assume fullscreen
+      appViewportHeight({ ...base, safeTop: 0 }), // Opaque OS status bar: its space is not app space
+      appViewportHeight({ ...base, visualHeight: 480 }), // Keyboard covers bottom
+      appViewportHeight({ ...base, layoutHeight: 480, visualHeight: 480 }), // OS also resizes layout for keyboard
+      appViewportHeight({ ...base, screenHeight: 1024 }), // Unrelated screen/viewport mismatch
+    ];
+  });
+  expect(heights).toEqual([844, 797, 797, 797, 480, 480, 797]);
+});

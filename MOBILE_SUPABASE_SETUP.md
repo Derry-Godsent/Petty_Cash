@@ -64,3 +64,21 @@ Linux tests use npm-distributed Chromium with bundled libraries. On other platfo
 ## Optional push notifications
 
 See [PUSH_NOTIFICATIONS_SETUP.md](./PUSH_NOTIFICATIONS_SETUP.md) for iPhone/Android opt-in and the required private server setup. Push is separate from the 10-second in-app data refresh; it works while the app is closed once deployed.
+
+### Installed iPhone layout verification
+
+The current layout revision is **viewport-4** (Settings → App information).
+This revision measures the visible viewport and corrects a narrowly identified
+standalone iOS status-bar-height mismatch, rather than stretching every device to
+`screen.height`. Android, ordinary browser windows, split-screen widths and
+keyboard-reduced viewports are not expanded to full-screen dimensions. New
+installations use the opaque/default iOS status-bar mode; existing installations
+may retain their original status-bar mode.
+
+After deploying, use **Check for updates** in App information to check the service
+worker and reload without clearing private-link storage or push subscriptions.
+If a physical phone still has a gap, expand **Display diagnostics** and capture
+those values with the screen. Diagnostics contain viewport/screen/inset geometry
+and the layout revision only, not private access links or financial data.
+Chromium tests now reproduce the 47px standalone viewport mismatch and keyboard
+recovery, but do not replace testing on an actual iPhone/WebKit installation.

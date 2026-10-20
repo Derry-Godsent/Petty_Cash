@@ -2,6 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { installViewportSizing } from './lib/viewport'
+
+const disposeViewportSizing = installViewportSizing();
+if (import.meta.hot) import.meta.hot.dispose(disposeViewportSizing);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

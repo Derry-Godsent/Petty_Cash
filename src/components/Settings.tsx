@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import AppInformation from './AppInformation';
 import { AppSettings } from '../types';
 import { Save, Download, Upload, Trash2, Database } from 'lucide-react';
 
@@ -189,6 +190,7 @@ export default function Settings({ settings, onSave, onExport, onImport, onClear
         </div>
       )}
 
+      <AppInformation />
       {/* Footer */}
       <div className="text-center py-4">
         <p className="text-xs text-gray-500">Petty Cash</p>

@@ -15,6 +15,7 @@ test('built app fills the viewport, retains only home-indicator space, and keeps
   await page.addStyleTag({ content: '.bottom-nav { padding-bottom: 34px; }' });
   for (const size of [{ width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
     await page.setViewportSize(size);
+    await expect.poll(() => page.evaluate(() => Math.abs(document.getElementById('root')!.getBoundingClientRect().bottom - window.innerHeight))).toBeLessThanOrEqual(1);
     for (const tab of ['Home', 'History', 'Report', 'Settings']) {
       await page.getByRole('button', { name: tab, exact: true }).click();
       const metrics = await page.evaluate(() => {
@@ -49,4 +50,41 @@ test('built app fills the viewport, retains only home-indicator space, and keeps
       }
     }
   }
+});
+
+test('installed iPhone status-bar viewport mismatch fills the screen and recovers after keyboard close', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as any).__viewport = { layout: 797, visual: 797 };
+    Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
+    Object.defineProperty(screen, 'width', { value: 390, configurable: true });
+    Object.defineProperty(screen, 'height', { value: 844, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { get: () => (window as any).__viewport.layout, configurable: true });
+    Object.defineProperty(window.visualViewport!, 'height', { get: () => (window as any).__viewport.visual, configurable: true });
+    localStorage.setItem('petty-cash-private-link-v1', JSON.stringify({ token: 'a'.repeat(64) }));
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/rest/v1/rpc/pc_open', route => route.fulfill({ json: { id: 'book', role: 'owner', settings: {}, transactions: [] } }));
+  await page.goto('/');
+  await expect(page.getByRole('navigation')).toBeVisible();
+  await page.addStyleTag({ content: '.viewport-safe-area-probe { padding-top: 47px; padding-bottom: 34px; } .bottom-nav { padding-bottom: 34px; }' });
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await expect.poll(() => page.locator('#root').evaluate(element => element.getBoundingClientRect().bottom)).toBe(844);
+  await expect.poll(() => page.getByRole('navigation').evaluate(element => element.getBoundingClientRect().bottom)).toBe(844);
+  await page.evaluate(() => {
+    (window as any).__viewport.visual = 480;
+    window.visualViewport!.dispatchEvent(new Event('resize'));
+  });
+  await expect.poll(() => page.locator('#root').evaluate(element => element.getBoundingClientRect().height)).toBe(480);
+  await page.evaluate(() => {
+    (window as any).__viewport.visual = 797;
+    window.visualViewport!.dispatchEvent(new Event('resize'));
+  });
+  await expect.poll(() => page.getByRole('navigation').evaluate(element => element.getBoundingClientRect().bottom)).toBe(844);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByText('Display diagnostics', { exact: true }).click();
+  const diagnostics = await page.locator('details pre').innerText();
+  expect(diagnostics).toContain('viewport-4');
+  expect(diagnostics).toContain('standalone');
+  expect(diagnostics).not.toContain('a'.repeat(64));
+  expect(diagnostics).not.toContain('#access');
 });
